@@ -1985,3 +1985,317 @@ async def mother_messages(bot: Robot, message: Message):
     if state == "waiting_delete_training":
 
         bot_id = state_data["bot_id"]
+        user_data = get_user_data(uid)
+        bot_data = user_data["bots"].get(bot_id)
+
+        if not bot_data:
+            states.pop(uid, None)
+            await message.reply("❌ ربات پیدا نشد.")
+            return
+
+        if text == "0":
+            bot_data["questions"] = {}
+            save_data()
+            states[uid] = {
+                "state": "bot_manager",
+                "bot_id": bot_id
+            }
+            await message.reply_keypad(
+                "✅ همه آموزش‌ها حذف شدند.",
+                bot_manager_keypad(bot_data.get('name', 'ربات'))
+            )
+            return
+
+        try:
+            index = int(text) - 1
+            questions_list = list(bot_data["questions"].keys())
+            if 0 <= index < len(questions_list):
+                deleted_question = questions_list[index]
+                del bot_data["questions"][deleted_question]
+                save_data()
+                states[uid] = {
+                    "state": "bot_manager",
+                    "bot_id": bot_id
+                }
+                await message.reply_keypad(
+                    f"✅ آموزش '{deleted_question}' حذف شد.",
+                    bot_manager_keypad(bot_data.get('name', 'ربات'))
+                )
+            else:
+                await message.reply("❌ شماره وارد شده معتبر نیست. لطفاً شماره صحیح را بفرستید.")
+        except ValueError:
+            await message.reply("❌ لطفاً یک شماره معتبر یا 0 برای حذف همه بفرستید.")
+
+        return
+
+
+# =========================================================
+# اجرای ربات فرزند
+# =========================================================
+
+async def start_child_bot(tid):
+
+    # اگر قبلاً در حال اجراست
+    if tid in child_tasks:
+
+        task = child_tasks[tid]
+
+        if not task.done():
+            return
+
+    bot = child_bots.get(tid)
+
+    if not bot:
+        return
+
+    async def runner():
+
+        # -------------------------------
+        # /start
+        # -------------------------------
+
+        @bot.on_message(commands=["start"])
+        async def child_start(
+            child_bot: Robot,
+            message: Message
+        ):
+
+            data = find_bot_data(tid)
+
+            if not data:
+                return
+
+            keypad = child_keyboard(
+                data["buttons"]
+            )
+
+            # پیدا کردن کاربر و ارسال پیام استارت شخصی‌سازی شده
+            uid = get_user_id(message)
+            start_message = "👋 سلام! به ربات من خوش آمدی."
+            
+            if uid:
+                user_data = get_user_data(uid)
+                start_message = user_data.get("start_message", "👋 سلام! به ربات من خوش آمدی.")
+                # فرمت‌دهی پیام (مخفی)
+                start_message = format_text(start_message)
+
+            await message.reply_keypad(
+                start_message,
+                keypad
+            )
+
+
+        # -------------------------------
+        # دکمه‌ها
+        # -------------------------------
+
+        @bot.on_callback()
+        async def child_callback(
+            child_bot: Robot,
+            message: Message
+        ):
+
+            data = find_bot_data(tid)
+
+            if not data:
+                return
+
+            try:
+
+                button_id = (
+                    message
+                    .aux_data
+                    .button_id
+                )
+
+            except Exception:
+
+                button_id = None
+
+            if not button_id:
+                return
+
+            for button in data["buttons"]:
+
+                if button["id"] == button_id:
+
+                    await message.reply(
+                        format_text(button["response"])
+                    )
+
+                    return
+
+
+        # -------------------------------
+        # پیام‌های عادی - پاسخ به سوالات
+        # -------------------------------
+
+        @bot.on_message()
+        async def child_messages(
+            child_bot: Robot,
+            message: Message
+        ):
+
+            text = getattr(
+                message,
+                "text",
+                None
+            )
+
+            if not text:
+                return
+
+            text = str(text).strip()
+
+            # دستورات
+            if text.startswith("/"):
+                return
+
+            data = find_bot_data(tid)
+
+            if not data:
+                return
+
+            questions = data["questions"]
+
+            # سؤال آموزش‌داده‌شده
+            if text in questions:
+
+                await message.reply(
+                    format_text(questions[text])
+                )
+
+                return
+
+
+        # -------------------------------
+        # اجرای ربات
+        # -------------------------------
+
+        try:
+
+            print(
+                f"CHILD BOT STARTED: {tid}"
+            )
+
+            await bot.run()
+
+        except Exception as e:
+
+            print(
+                f"CHILD BOT ERROR [{tid}]:",
+                e
+            )
+
+
+    task = asyncio.create_task(
+        runner()
+    )
+
+    child_tasks[tid] = task
+
+
+# =========================================================
+# فعال‌سازی ربات‌های ذخیره‌شده
+# =========================================================
+
+async def restore_child_bots():
+
+    for uid in DATA["users"]:
+
+        bots = DATA["users"][uid]["bots"]
+
+        for tid in bots:
+
+            bot_data = bots[tid]
+
+            token = bot_data.get(
+                "token"
+            )
+
+            if not token:
+                continue
+
+            try:
+
+                bot = Robot(token)
+
+                await bot.get_me()
+
+                child_bots[tid] = bot
+
+                await start_child_bot(
+                    tid
+                )
+
+                print(
+                    f"RESTORED BOT: {tid}"
+                )
+
+            except Exception as e:
+
+                print(
+                    f"RESTORE ERROR [{tid}]:",
+                    e
+                )
+
+
+# =========================================================
+# اجرای اصلی
+# =========================================================
+
+async def main():
+
+    print(
+        "================================"
+    )
+
+    print(
+        " RUBKA BOT BUILDER"
+    )
+
+    print(
+        " Creator:",
+        CREATOR
+    )
+
+    print(
+        "================================"
+    )
+
+    # ربات‌های قبلی
+    await restore_child_bots()
+
+    print(
+        "Starting mother bot..."
+    )
+
+    # اجرای مادر
+    await mother.run()
+
+
+# =========================================================
+# START
+# =========================================================
+
+if __name__ == "__main__":
+
+    try:
+
+        asyncio.run(
+            main()
+        )
+
+    except KeyboardInterrupt:
+
+        print(
+            "\nBot stopped."
+        )
+
+    except Exception as e:
+
+        print(
+            "FATAL ERROR:",
+            type(e).__name__,
+            str(e)
+        )
