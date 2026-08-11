@@ -1958,4 +1958,222 @@ async def start_child_bot(tid):
                 start_message = format_text(start_message)
 
             await message.reply_keypad(
-                
+                start_message,
+                keypad
+            )
+
+
+        # -------------------------------
+        # دکمه‌ها
+        # -------------------------------
+
+        @bot.on_callback()
+        async def child_callback(
+            child_bot: Robot,
+            message: Message
+        ):
+
+            data = find_bot_data(tid)
+
+            if not data:
+                return
+
+            try:
+
+                button_id = (
+                    message
+                    .aux_data
+                    .button_id
+                )
+
+            except Exception:
+
+                button_id = None
+
+            if not button_id:
+                return
+
+            for button in data["buttons"]:
+
+                if button["id"] == button_id:
+
+                    await message.reply(
+                        format_text(button["response"])
+                    )
+
+                    return
+
+
+        # -------------------------------
+        # پیام‌های عادی - پاسخ به سوالات
+        # -------------------------------
+
+        @bot.on_message()
+        async def child_messages(
+            child_bot: Robot,
+            message: Message
+        ):
+
+            text = getattr(
+                message,
+                "text",
+                None
+            )
+
+            if not text:
+                return
+
+            text = str(text).strip()
+
+            # دستورات
+            if text.startswith("/"):
+                return
+
+            data = find_bot_data(tid)
+
+            if not data:
+                return
+
+            questions = data["questions"]
+
+            # سؤال آموزش‌داده‌شده
+            if text in questions:
+
+                await message.reply(
+                    format_text(questions[text])
+                )
+
+                return
+
+
+        # -------------------------------
+        # اجرای ربات
+        # -------------------------------
+
+        try:
+
+            print(
+                f"CHILD BOT STARTED: {tid}"
+            )
+
+            await bot.run()
+
+        except Exception as e:
+
+            print(
+                f"CHILD BOT ERROR [{tid}]:",
+                e
+            )
+
+
+    task = asyncio.create_task(
+        runner()
+    )
+
+    child_tasks[tid] = task
+
+
+# =========================================================
+# فعال‌سازی ربات‌های ذخیره‌شده
+# =========================================================
+
+async def restore_child_bots():
+
+    for uid in DATA["users"]:
+
+        bots = DATA["users"][uid]["bots"]
+
+        for tid in bots:
+
+            bot_data = bots[tid]
+
+            token = bot_data.get(
+                "token"
+            )
+
+            if not token:
+                continue
+
+            try:
+
+                bot = Robot(token)
+
+                await bot.get_me()
+
+                child_bots[tid] = bot
+
+                await start_child_bot(
+                    tid
+                )
+
+                print(
+                    f"RESTORED BOT: {tid}"
+                )
+
+            except Exception as e:
+
+                print(
+                    f"RESTORE ERROR [{tid}]:",
+                    e
+                )
+
+
+# =========================================================
+# اجرای اصلی
+# =========================================================
+
+async def main():
+
+    print(
+        "================================"
+    )
+
+    print(
+        " RUBKA BOT BUILDER"
+    )
+
+    print(
+        " Creator:",
+        CREATOR
+    )
+
+    print(
+        "================================"
+    )
+
+    # ربات‌های قبلی
+    await restore_child_bots()
+
+    print(
+        "Starting mother bot..."
+    )
+
+    # اجرای مادر
+    await mother.run()
+
+
+# =========================================================
+# START
+# =========================================================
+
+if __name__ == "__main__":
+
+    try:
+
+        asyncio.run(
+            main()
+        )
+
+    except KeyboardInterrupt:
+
+        print(
+            "\nBot stopped."
+        )
+
+    except Exception as e:
+
+        print(
+            "FATAL ERROR:",
+            type(e).__name__,
+            str(e)
+    )
