@@ -233,42 +233,30 @@ def build_main_keypad(uid):
 # کیبورد مدیریت ربات (منوی دوم)
 # =========================================================
 
-def bot_manager_keypad(bot_name):
-
+def bot_manager_keypad(bot_name, uid):
     builder = ChatKeypadBuilder()
-
-    keypad = (
-        builder
-        .row(
-            builder.button(
-                id="menu_buttons",
-                text="🔘 دکمه‌ها"
-            ),
-            builder.button(
-                id="menu_trainings",
-                text="📚 آموزش‌ها"
-            )
-        )
-        .row(
-            builder.button(
-                id="edit_start",
-                text="✏️ پیام استارت"
-            ),
-            builder.button(
-                id="delete_bot",
-                text="🗑 حذف ربات"
-            )
-        )
-        .row(
-            builder.button(
-                id="back_to_main",
-                text="🔙 بازگشت"
-            )
-        )
-        .build()
+    
+    # دکمه‌های عمومی
+    row_buttons = [
+        builder.button(id="menu_buttons", text="🔘 دکمه‌ها"),
+        builder.button(id="menu_trainings", text="📚 آموزش‌ها")
+    ]
+    
+    # ویرایش پیام استارت فقط برای اکانت ویژه
+    if is_vip(uid):
+        row_buttons.append(builder.button(id="edit_start", text="✏️ پیام استارت"))
+    
+    # ساخت ردیف‌ها
+    builder.row(*row_buttons[:2])
+    if len(row_buttons) > 2:
+        builder.row(row_buttons[2])
+    
+    builder.row(
+        builder.button(id="delete_bot", text="🗑 حذف ربات"),
+        builder.button(id="back_to_main", text="🔙 بازگشت")
     )
-
-    return keypad
+    
+    return builder.build()
 
 
 # =========================================================
@@ -395,6 +383,24 @@ def find_bot_data(token_id):
 def find_bot_by_id(uid, bot_id):
     user_data = get_user_data(uid)
     return user_data["bots"].get(bot_id)
+
+
+# =========================================================
+# پیدا کردن بهترین جواب برای متن
+# =========================================================
+
+def find_best_answer(text, questions):
+    """پیدا کردن بهترین جواب برای متن بر اساس طولانی‌ترین عبارت منطبق"""
+    best_match = None
+    best_len = 0
+    
+    for question, answer in questions.items():
+        if question in text:
+            if len(question) > best_len:
+                best_len = len(question)
+                best_match = (question, answer)
+    
+    return best_match
 
 
 # =========================================================
@@ -563,7 +569,7 @@ async def back_to_bot_manager(bot: Robot, message: Message):
         f"🤖 **مدیریت ربات: {bot_data.get('name', 'ربات')}**\n\n"
         f"تعداد دکمه‌ها: {len(bot_data.get('buttons', []))}\n"
         f"تعداد آموزش‌ها: {len(bot_data.get('questions', {}))}",
-        bot_manager_keypad(bot_data.get('name', 'ربات'))
+        bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
     )
 
 
@@ -618,7 +624,8 @@ async def menu_vip(bot: Robot, message: Message):
             "🎯 امکانات ویژه:\n"
             f"• تعداد ربات‌ها: {VIP_BOT_LIMIT} عدد\n"
             "• تعداد دکمه‌ها: نامحدود\n"
-            "• تعداد آموزش‌ها: نامحدود\n\n"
+            "• تعداد آموزش‌ها: نامحدود\n"
+            "• ویرایش پیام استارت: فعال\n\n"
             "🙏 از اعتماد شما سپاسگزاریم!"
         )
         return
@@ -691,6 +698,14 @@ async def edit_start(bot: Robot, message: Message):
     uid = get_user_id(message)
 
     if not uid:
+        return
+
+    # فقط برای اکانت ویژه
+    if not is_vip(uid):
+        await message.reply(
+            "❌ این قابلیت فقط برای کاربران ویژه فعال است!\n\n"
+            "برای ارتقا به اکانت ویژه، از منوی اکانت ویژه استفاده کنید."
+        )
         return
 
     bot_id = current_bot.get(uid)
@@ -1063,6 +1078,67 @@ async def mother_messages(bot: Robot, message: Message):
         return
 
     # =====================================================
+    # دستور مخفی راهنما (فقط برای سازنده)
+    # =====================================================
+    
+    if text == "راهنما 127":
+        print("HELP COMMAND DETECTED")
+        help_text = """
+📚 **راهنمای ربات مادر**
+
+👨‍💻 **سازنده:** @reza_127_s
+
+🔑 **امکانات اصلی:**
+• ساخت و مدیریت ربات‌های فرزند
+• ساخت دکمه‌های کیبورد
+• آموزش پاسخ‌ها به ربات
+• سیستم اکانت ویژه
+
+📋 **راهنمای منوها:**
+
+🤖 **منوی اصلی:**
+• ➕ افزودن ربات - اضافه کردن ربات جدید
+• 🤖 [اسم ربات] - ورود به مدیریت ربات
+• ⭐ اکانت ویژه - ارتقا یا مشاهده اکانت
+
+🔘 **مدیریت دکمه‌ها:**
+• ➕ ساخت دکمه - ساخت دکمه جدید
+• ✏️ ویرایش دکمه - ویرایش دکمه موجود
+• 🗑 حذف دکمه - حذف دکمه (عدد 0 برای حذف همه)
+
+📚 **مدیریت آموزش‌ها:**
+• ➕ آموزش جدید - آموزش عبارت جدید
+• ✏️ ویرایش آموزش - ویرایش آموزش موجود
+• 🗑 حذف آموزش - حذف آموزش (عدد 0 برای حذف همه)
+
+⭐ **اکانت ویژه:**
+• تعداد ربات‌ها: 5 عدد
+• تعداد دکمه‌ها: نامحدود
+• تعداد آموزش‌ها: نامحدود
+• ویرایش پیام استارت: فعال
+
+🔰 **اکانت عادی:**
+• تعداد ربات‌ها: 1 عدد
+• تعداد دکمه‌ها: 3 عدد
+• تعداد آموزش‌ها: 5 عدد
+• ویرایش پیام استارت: غیرفعال
+
+🔐 **کد مخفی:** 1271390 (برای دریافت کد یکبار مصرف)
+
+📝 **تگ‌های مخفی (فقط سازنده):**
+• کج = __متن__
+• اسپویلر = ||متن||
+• برجسته = **متن**
+• خطدار = ~~متن~~
+• کپی = `متن`
+• کپی کد = ```متن```
+
+💡 **نکته:** برای بازگشت به منوی اصلی از دکمه 🔙 بازگشت استفاده کنید.
+"""
+        await message.reply(help_text)
+        return
+
+    # =====================================================
     # دکمه‌های کیبورد ChatKeypad - دیسپچر
     # =====================================================
 
@@ -1160,7 +1236,7 @@ async def mother_messages(bot: Robot, message: Message):
                 f"🤖 **مدیریت ربات: {bot_data.get('name', 'ربات')}**\n\n"
                 f"تعداد دکمه‌ها: {len(bot_data.get('buttons', []))}\n"
                 f"تعداد آموزش‌ها: {len(bot_data.get('questions', {}))}",
-                bot_manager_keypad(bot_data.get('name', 'ربات'))
+                bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
             )
             return
 
@@ -1219,7 +1295,8 @@ async def mother_messages(bot: Robot, message: Message):
                     "امکانات جدید شما:\n"
                     f"• تعداد ربات‌ها: {VIP_BOT_LIMIT} عدد\n"
                     "• تعداد دکمه‌ها: نامحدود\n"
-                    "• تعداد آموزش‌ها: نامحدود\n\n"
+                    "• تعداد آموزش‌ها: نامحدود\n"
+                    "• ویرایش پیام استارت: فعال\n\n"
                     "از منوی اصلی استفاده کنید:",
                     build_main_keypad(uid)
                 )
@@ -1350,7 +1427,7 @@ async def mother_messages(bot: Robot, message: Message):
             "✅ پیام استارت با موفقیت ویرایش شد!\n\n"
             f"پیام جدید:\n{format_text(text)}\n\n"
             "از منوی مدیریت ربات استفاده کن:",
-            bot_manager_keypad(bot_data.get('name', 'ربات'))
+            bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
         )
 
         return
@@ -1438,7 +1515,7 @@ async def mother_messages(bot: Robot, message: Message):
             "✅ دکمه با موفقیت ساخته شد! 🎉\n\n"
             f"🔘 متن دکمه:\n{button_text}\n\n"
             "از منوی مدیریت ربات استفاده کن:",
-            bot_manager_keypad(bot_data.get('name', 'ربات'))
+            bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
         )
 
         # تلاش برای ارسال کیبورد جدید
@@ -1536,7 +1613,7 @@ async def mother_messages(bot: Robot, message: Message):
             "🧠 آموزش با موفقیت ذخیره شد! ✅\n\n"
             f"❓ سؤال:\n{question}\n\n"
             "از منوی مدیریت ربات استفاده کن:",
-            bot_manager_keypad(bot_data.get('name', 'ربات'))
+            bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
         )
 
         return
@@ -1648,7 +1725,7 @@ async def mother_messages(bot: Robot, message: Message):
                 f"📝 دکمه: {bot_data['buttons'][index]['text']}\n"
                 f"💬 پاسخ: {new_response}\n\n"
                 "از منوی مدیریت ربات استفاده کن:",
-                bot_manager_keypad(bot_data.get('name', 'ربات'))
+                bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
             )
             
             # به‌روزرسانی کیبورد ربات فرزند
@@ -1691,7 +1768,7 @@ async def mother_messages(bot: Robot, message: Message):
             current_bot[uid] = bot_id
             await message.reply_keypad(
                 "✅ همه دکمه‌ها حذف شدند.",
-                bot_manager_keypad(bot_data.get('name', 'ربات'))
+                bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
             )
             
             # به‌روزرسانی کیبورد ربات فرزند
@@ -1717,7 +1794,7 @@ async def mother_messages(bot: Robot, message: Message):
                 current_bot[uid] = bot_id
                 await message.reply_keypad(
                     f"✅ دکمه '{deleted_button['text']}' حذف شد.",
-                    bot_manager_keypad(bot_data.get('name', 'ربات'))
+                    bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
                 )
                 
                 # به‌روزرسانی کیبورد ربات فرزند
@@ -1853,7 +1930,7 @@ async def mother_messages(bot: Robot, message: Message):
             f"❓ سؤال: {new_question}\n"
             f"💬 پاسخ: {new_answer}\n\n"
             "از منوی مدیریت ربات استفاده کن:",
-            bot_manager_keypad(bot_data.get('name', 'ربات'))
+            bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
         )
 
         return
@@ -1880,7 +1957,7 @@ async def mother_messages(bot: Robot, message: Message):
             current_bot[uid] = bot_id
             await message.reply_keypad(
                 "✅ همه آموزش‌ها حذف شدند.",
-                bot_manager_keypad(bot_data.get('name', 'ربات'))
+                bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
             )
             return
 
@@ -1894,7 +1971,7 @@ async def mother_messages(bot: Robot, message: Message):
                 current_bot[uid] = bot_id
                 await message.reply_keypad(
                     f"✅ آموزش '{deleted_question}' حذف شد.",
-                    bot_manager_keypad(bot_data.get('name', 'ربات'))
+                    bot_manager_keypad(bot_data.get('name', 'ربات'), uid)
                 )
             else:
                 await message.reply("❌ شماره وارد شده معتبر نیست. لطفاً شماره صحیح را بفرستید.")
@@ -2035,15 +2112,18 @@ async def start_child_bot(tid):
                 return
 
             questions = data["questions"]
-
-            # سؤال آموزش‌داده‌شده
-            if text in questions:
-
-                await message.reply(
-                    format_text(questions[text])
-                )
-
+            
+            if not questions:
                 return
+
+            # پیدا کردن بهترین جواب بر اساس طولانی‌ترین عبارت منطبق
+            best_match = find_best_answer(text, questions)
+            
+            if best_match:
+                question, answer = best_match
+                await message.reply(
+                    format_text(answer)
+                )
 
 
         # -------------------------------
@@ -2176,4 +2256,4 @@ if __name__ == "__main__":
             "FATAL ERROR:",
             type(e).__name__,
             str(e)
-    )
+        )
