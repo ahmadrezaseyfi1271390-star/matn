@@ -4,6 +4,7 @@ import os
 import hashlib
 import random
 import string
+from pathlib import Path
 
 from rubka import Robot
 from rubka.context import Message
@@ -18,7 +19,10 @@ MOTHER_TOKEN = "CBFHDH0GNRJXCUWLGMDAALCISLAKUVPNZFGEZULWRBGAUZYMRTNCENCKFJNRMSDK
 
 CREATOR = "@reza_127_s"
 
-DATA_FILE = "bots.json"
+# تعیین مسیر مطلق برای فایل دیتابیس
+# این فایل در کنار فایل اصلی ذخیره میشه
+BASE_DIR = Path(__file__).parent.absolute()
+DATA_FILE = os.path.join(BASE_DIR, "bots.json")
 
 # محدودیت‌ها برای اکانت ساده
 FREE_BOT_LIMIT = 1
@@ -40,23 +44,31 @@ SECRET_CODE = "1271390"
 
 def load_data():
     if not os.path.exists(DATA_FILE):
+        print(f"📁 فایل دیتابیس وجود ندارد، ایجاد میکنم: {DATA_FILE}")
         return {"users": {}, "vip_users": [], "temp_codes": {}}
 
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
+            data = json.load(f)
+            print(f"✅ دیتابیس بارگذاری شد: {DATA_FILE}")
+            return data
+    except Exception as e:
+        print(f"❌ خطا در خواندن دیتابیس: {e}")
         return {"users": {}, "vip_users": [], "temp_codes": {}}
 
 
 def save_data():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(
-            DATA,
-            f,
-            ensure_ascii=False,
-            indent=2
-        )
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                DATA,
+                f,
+                ensure_ascii=False,
+                indent=2
+            )
+        print(f"💾 دیتابیس ذخیره شد: {DATA_FILE}")
+    except Exception as e:
+        print(f"❌ خطا در ذخیره دیتابیس: {e}")
 
 
 DATA = load_data()
@@ -2220,6 +2232,8 @@ async def main():
     print(
         "================================"
     )
+
+    print(f"📁 مسیر دیتابیس: {DATA_FILE}")
 
     # ربات‌های قبلی
     await restore_child_bots()
