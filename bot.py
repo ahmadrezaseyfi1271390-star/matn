@@ -20,22 +20,27 @@ MOTHER_TOKEN = "CBFHDH0GNRJXCUWLGMDAALCISLAKUVPNZFGEZULWRBGAUZYMRTNCENCKFJNRMSDK
 CREATOR = "@reza_127_s"
 
 # تعیین مسیر مطلق برای فایل دیتابیس
-# این فایل در کنار فایل اصلی ذخیره میشه
 BASE_DIR = Path(__file__).parent.absolute()
 DATA_FILE = os.path.join(BASE_DIR, "bots.json")
 
 # محدودیت‌ها برای اکانت ساده
 FREE_BOT_LIMIT = 1
-FREE_BUTTON_LIMIT = 3
-FREE_QUESTION_LIMIT = 5
+FREE_BUTTON_LIMIT = 2
+FREE_QUESTION_LIMIT = 3
 
 # محدودیت‌ها برای اکانت ویژه
-VIP_BOT_LIMIT = 5
-VIP_BUTTON_LIMIT = 999999
-VIP_QUESTION_LIMIT = 999999
+VIP_BOT_LIMIT = 3
+VIP_BUTTON_LIMIT = 5
+VIP_QUESTION_LIMIT = 10
 
-# کد مخفی برای ساخت کد یکبار مصرف
-SECRET_CODE = "1271390"
+# محدودیت‌ها برای اکانت برتر (نامحدود)
+PREMIUM_BOT_LIMIT = 999999
+PREMIUM_BUTTON_LIMIT = 999999
+PREMIUM_QUESTION_LIMIT = 999999
+
+# کدهای مخفی برای ساخت کد یکبار مصرف
+VIP_SECRET_CODE = "1271390"
+PREMIUM_SECRET_CODE = "1234567891390"
 
 
 # =========================================================
@@ -45,7 +50,7 @@ SECRET_CODE = "1271390"
 def load_data():
     if not os.path.exists(DATA_FILE):
         print(f"📁 فایل دیتابیس وجود ندارد، ایجاد میکنم: {DATA_FILE}")
-        return {"users": {}, "vip_users": [], "temp_codes": {}}
+        return {"users": {}, "vip_users": [], "premium_users": [], "temp_codes": {}}
 
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -54,7 +59,7 @@ def load_data():
             return data
     except Exception as e:
         print(f"❌ خطا در خواندن دیتابیس: {e}")
-        return {"users": {}, "vip_users": [], "temp_codes": {}}
+        return {"users": {}, "vip_users": [], "premium_users": [], "temp_codes": {}}
 
 
 def save_data():
@@ -73,8 +78,9 @@ def save_data():
 
 DATA = load_data()
 
-# بارگذاری کاربران ویژه از دیتابیس
+# بارگذاری کاربران ویژه و برتر از دیتابیس
 VIP_USERS = set(DATA.get("vip_users", []))
+PREMIUM_USERS = set(DATA.get("premium_users", []))
 
 
 # =========================================================
@@ -122,7 +128,7 @@ def get_user_data(uid):
 
         DATA["users"][uid] = {
             "bots": {},
-            "start_message": "👋 سلام! به ربات من خوش آمدی."
+            "start_message": "از منوی زیر استفاده کنید:"
         }
 
         save_data()
@@ -131,11 +137,14 @@ def get_user_data(uid):
 
 
 # =========================================================
-# بررسی وضعیت ویژه بودن کاربر
+# بررسی وضعیت کاربر
 # =========================================================
 
 def is_vip(uid):
     return uid in VIP_USERS
+
+def is_premium(uid):
+    return uid in PREMIUM_USERS
 
 
 # =========================================================
@@ -143,19 +152,29 @@ def is_vip(uid):
 # =========================================================
 
 def get_user_limits(uid):
-    if is_vip(uid):
+    if is_premium(uid):
+        return {
+            "bot_limit": PREMIUM_BOT_LIMIT,
+            "button_limit": PREMIUM_BUTTON_LIMIT,
+            "question_limit": PREMIUM_QUESTION_LIMIT,
+            "level": "برتر",
+            "can_edit_start": True
+        }
+    elif is_vip(uid):
         return {
             "bot_limit": VIP_BOT_LIMIT,
             "button_limit": VIP_BUTTON_LIMIT,
             "question_limit": VIP_QUESTION_LIMIT,
-            "is_vip": True
+            "level": "ویژه",
+            "can_edit_start": True
         }
     else:
         return {
             "bot_limit": FREE_BOT_LIMIT,
             "button_limit": FREE_BUTTON_LIMIT,
             "question_limit": FREE_QUESTION_LIMIT,
-            "is_vip": False
+            "level": "عادی",
+            "can_edit_start": False
         }
 
 
@@ -254,8 +273,9 @@ def bot_manager_keypad(bot_name, uid):
         builder.button(id="menu_trainings", text="📚 آموزش‌ها")
     ]
     
-    # ویرایش پیام استارت فقط برای اکانت ویژه
-    if is_vip(uid):
+    # ویرایش پیام استارت فقط برای ویژه و برتر
+    limits = get_user_limits(uid)
+    if limits["can_edit_start"]:
         row_buttons.append(builder.button(id="edit_start", text="✏️ پیام استارت"))
     
     # ساخت ردیف‌ها
@@ -440,10 +460,10 @@ async def activate_bot(uid, bot_name, token):
     current_bots_count = len(user_data["bots"])
     
     if current_bots_count >= limits["bot_limit"]:
-        if limits["is_vip"]:
+        if limits["level"] == "برتر":
             return False, None, f"شما به حداکثر تعداد ربات‌ها رسیده‌اید (حداکثر {limits['bot_limit']} ربات)."
         else:
-            return False, None, f"شما به حداکثر تعداد ربات‌ها رسیده‌اید (حداکثر {limits['bot_limit']} ربات).\nبرای ارتقا به اکانت ویژه، از منوی اکانت ویژه استفاده کنید."
+            return False, None, f"شما به حداکثر تعداد ربات‌ها رسیده‌اید (حداکثر {limits['bot_limit']} ربات).\nبرای ارتقا به اکانت ویژه یا برتر، از منوی اکانت ویژه استفاده کنید."
 
     try:
 
@@ -529,7 +549,6 @@ async def mother_start(bot: Robot, message: Message):
 
     await message.reply_keypad(
         "🤖 ربات مادر فعال است.\n\n"
-        f"👨‍💻 سازنده: {CREATOR}\n\n"
         "برای شروع یک ربات جدید اضافه کن:",
         build_main_keypad(uid)
     )
@@ -552,8 +571,7 @@ async def back_to_main(bot: Robot, message: Message):
     current_bot.pop(uid, None)
 
     await message.reply_keypad(
-        "🤖 منوی اصلی:\n\n"
-        f"👨‍💻 سازنده: {CREATOR}",
+        "🤖 منوی اصلی:",
         build_main_keypad(uid)
     )
 
@@ -599,15 +617,10 @@ async def add_bot(bot: Robot, message: Message):
     current_bots_count = len(user_data["bots"])
     
     if current_bots_count >= limits["bot_limit"]:
-        if limits["is_vip"]:
-            await message.reply(
-                f"❌ شما به حداکثر تعداد ربات‌ها رسیده‌اید (حداکثر {limits['bot_limit']} ربات)."
-            )
-        else:
-            await message.reply(
-                f"❌ شما به حداکثر تعداد ربات‌ها رسیده‌اید (حداکثر {limits['bot_limit']} ربات).\n"
-                "برای ارتقا به اکانت ویژه، از منوی اکانت ویژه استفاده کنید."
-            )
+        await message.reply(
+            f"❌ شما به حداکثر تعداد ربات‌ها رسیده‌اید (حداکثر {limits['bot_limit']} ربات).\n"
+            "برای ارتقا به اکانت ویژه یا برتر، از منوی اکانت ویژه استفاده کنید."
+        )
         return
 
     states[uid] = {
@@ -629,21 +642,36 @@ async def menu_vip(bot: Robot, message: Message):
     if not uid:
         return
 
-    if is_vip(uid):
+    limits = get_user_limits(uid)
+    
+    if limits["level"] == "برتر":
         await message.reply(
-            "⭐ **اکانت ویژه**\n\n"
-            "✅ شما کاربر ویژه هستید!\n\n"
-            "🎯 امکانات ویژه:\n"
-            f"• تعداد ربات‌ها: {VIP_BOT_LIMIT} عدد\n"
+            "👑 **اکانت برتر**\n\n"
+            "✅ شما کاربر برتر هستید!\n\n"
+            "🎯 امکانات برتر:\n"
+            "• تعداد ربات‌ها: نامحدود\n"
             "• تعداد دکمه‌ها: نامحدود\n"
             "• تعداد آموزش‌ها: نامحدود\n"
             "• ویرایش پیام استارت: فعال\n\n"
             "🙏 از اعتماد شما سپاسگزاریم!"
         )
         return
+    
+    if is_vip(uid):
+        await message.reply(
+            "⭐ **اکانت ویژه**\n\n"
+            "✅ شما کاربر ویژه هستید!\n\n"
+            "🎯 امکانات ویژه:\n"
+            f"• تعداد ربات‌ها: {VIP_BOT_LIMIT} عدد\n"
+            f"• تعداد دکمه‌ها: {VIP_BUTTON_LIMIT} عدد\n"
+            f"• تعداد آموزش‌ها: {VIP_QUESTION_LIMIT} عدد\n"
+            "• ویرایش پیام استارت: فعال\n\n"
+            "👑 برای ارتقا به اکانت برتر، کد برتر را وارد کنید."
+        )
+        return
 
     await message.reply(
-        "⭐ **ارتقا به اکانت ویژه**\n\n"
+        "⭐ **ارتقا به اکانت ویژه یا برتر**\n\n"
         "کد یکبار مصرف خود را وارد کنید.\n\n"
         "اگر کد ندارید، با سازنده ربات تماس بگیرید."
     )
@@ -712,11 +740,12 @@ async def edit_start(bot: Robot, message: Message):
     if not uid:
         return
 
-    # فقط برای اکانت ویژه
-    if not is_vip(uid):
+    # فقط برای ویژه و برتر
+    limits = get_user_limits(uid)
+    if not limits["can_edit_start"]:
         await message.reply(
-            "❌ این قابلیت فقط برای کاربران ویژه فعال است!\n\n"
-            "برای ارتقا به اکانت ویژه، از منوی اکانت ویژه استفاده کنید."
+            "❌ این قابلیت فقط برای کاربران ویژه و برتر فعال است!\n\n"
+            "برای ارتقا به اکانت ویژه یا برتر، از منوی اکانت ویژه استفاده کنید."
         )
         return
 
@@ -727,7 +756,7 @@ async def edit_start(bot: Robot, message: Message):
         return
     
     user_data = get_user_data(uid)
-    current_start = user_data.get("start_message", "👋 سلام! به ربات من خوش آمدی.")
+    current_start = user_data.get("start_message", "از منوی زیر استفاده کنید:")
 
     states[uid] = {
         "state": "waiting_edit_start",
@@ -805,15 +834,10 @@ async def make_button(bot: Robot, message: Message):
     current_buttons = len(bot_data["buttons"])
     
     if current_buttons >= limits["button_limit"]:
-        if limits["is_vip"]:
-            await message.reply(
-                f"❌ شما به حداکثر تعداد دکمه‌ها رسیده‌اید (حداکثر {limits['button_limit']} دکمه)."
-            )
-        else:
-            await message.reply(
-                f"❌ شما به حداکثر تعداد دکمه‌ها رسیده‌اید (حداکثر {limits['button_limit']} دکمه).\n"
-                "برای ارتقا به اکانت ویژه، از منوی اکانت ویژه استفاده کنید."
-            )
+        await message.reply(
+            f"❌ شما به حداکثر تعداد دکمه‌ها رسیده‌اید (حداکثر {limits['button_limit']} دکمه).\n"
+            "برای ارتقا به اکانت ویژه یا برتر، از منوی اکانت ویژه استفاده کنید."
+        )
         return
 
     states[uid] = {
@@ -944,15 +968,10 @@ async def training(bot: Robot, message: Message):
     current_questions = len(bot_data["questions"])
     
     if current_questions >= limits["question_limit"]:
-        if limits["is_vip"]:
-            await message.reply(
-                f"❌ شما به حداکثر تعداد آموزش‌ها رسیده‌اید (حداکثر {limits['question_limit']} آموزش)."
-            )
-        else:
-            await message.reply(
-                f"❌ شما به حداکثر تعداد آموزش‌ها رسیده‌اید (حداکثر {limits['question_limit']} آموزش).\n"
-                "برای ارتقا به اکانت ویژه، از منوی اکانت ویژه استفاده کنید."
-            )
+        await message.reply(
+            f"❌ شما به حداکثر تعداد آموزش‌ها رسیده‌اید (حداکثر {limits['question_limit']} آموزش).\n"
+            "برای ارتقا به اکانت ویژه یا برتر، از منوی اکانت ویژه استفاده کنید."
+        )
         return
 
     states[uid] = {
@@ -1090,7 +1109,7 @@ async def mother_messages(bot: Robot, message: Message):
         return
 
     # =====================================================
-    # دستور مخفی راهنما (فقط برای سازنده)
+    # دستور مخفی راهنما
     # =====================================================
     
     if text == "راهنما 127":
@@ -1098,13 +1117,11 @@ async def mother_messages(bot: Robot, message: Message):
         help_text = """
 📚 **راهنمای ربات مادر**
 
-👨‍💻 **سازنده:** @reza_127_s
-
 🔑 **امکانات اصلی:**
 • ساخت و مدیریت ربات‌های فرزند
 • ساخت دکمه‌های کیبورد
 • آموزش پاسخ‌ها به ربات
-• سیستم اکانت ویژه
+• سیستم اکانت ویژه و برتر
 
 📋 **راهنمای منوها:**
 
@@ -1123,21 +1140,29 @@ async def mother_messages(bot: Robot, message: Message):
 • ✏️ ویرایش آموزش - ویرایش آموزش موجود
 • 🗑 حذف آموزش - حذف آموزش (عدد 0 برای حذف همه)
 
+🔰 **اکانت عادی:**
+• تعداد ربات‌ها: 1 عدد
+• تعداد دکمه‌ها: 2 عدد
+• تعداد آموزش‌ها: 3 عدد
+• ویرایش پیام استارت: غیرفعال
+
 ⭐ **اکانت ویژه:**
-• تعداد ربات‌ها: 5 عدد
+• تعداد ربات‌ها: 3 عدد
+• تعداد دکمه‌ها: 5 عدد
+• تعداد آموزش‌ها: 10 عدد
+• ویرایش پیام استارت: فعال
+
+👑 **اکانت برتر:**
+• تعداد ربات‌ها: نامحدود
 • تعداد دکمه‌ها: نامحدود
 • تعداد آموزش‌ها: نامحدود
 • ویرایش پیام استارت: فعال
 
-🔰 **اکانت عادی:**
-• تعداد ربات‌ها: 1 عدد
-• تعداد دکمه‌ها: 3 عدد
-• تعداد آموزش‌ها: 5 عدد
-• ویرایش پیام استارت: غیرفعال
+🔐 **کدهای مخفی:**
+• کد ویژه: 1271390
+• کد برتر: 1234567891390
 
-🔐 **کد مخفی:** 1271390 (برای دریافت کد یکبار مصرف)
-
-📝 **تگ‌های مخفی (فقط سازنده):**
+📝 **تگ‌های مخفی:**
 • کج = __متن__
 • اسپویلر = ||متن||
 • برجسته = **متن**
@@ -1253,23 +1278,49 @@ async def mother_messages(bot: Robot, message: Message):
             return
 
     # =====================================================
-    # بررسی کد مخفی (فقط سازنده می‌دونه)
+    # بررسی کدهای مخفی
     # =====================================================
     
-    if text == SECRET_CODE:
-        print("SECRET CODE DETECTED")
-        # تولید کد یکبار مصرف
+    # کد برتر
+    if text == PREMIUM_SECRET_CODE:
+        print("PREMIUM SECRET CODE DETECTED")
+        # تولید کد یکبار مصرف برای برتر
         temp_code = generate_temp_code()
         
-        # ذخیره کد در دیتابیس
+        # ذخیره کد در دیتابیس با نوع premium
         if "temp_codes" not in DATA:
             DATA["temp_codes"] = {}
         
-        DATA["temp_codes"][temp_code] = uid
+        DATA["temp_codes"][temp_code] = {"uid": uid, "type": "premium"}
         save_data()
         
         await message.reply(
-            f"🔐 **کد یکبار مصرف شما:**\n\n"
+            f"👑 **کد یکبار مصرف برای اکانت برتر:**\n\n"
+            f"`{temp_code}`\n\n"
+            f"این کد را در منوی اکانت ویژه وارد کنید."
+        )
+        
+        # پاک کردن state اگر وجود دارد
+        if uid in states:
+            states.pop(uid)
+        
+        return
+    
+    # کد ویژه
+    if text == VIP_SECRET_CODE:
+        print("VIP SECRET CODE DETECTED")
+        # تولید کد یکبار مصرف برای ویژه
+        temp_code = generate_temp_code()
+        
+        # ذخیره کد در دیتابیس با نوع vip
+        if "temp_codes" not in DATA:
+            DATA["temp_codes"] = {}
+        
+        DATA["temp_codes"][temp_code] = {"uid": uid, "type": "vip"}
+        save_data()
+        
+        await message.reply(
+            f"⭐ **کد یکبار مصرف برای اکانت ویژه:**\n\n"
             f"`{temp_code}`\n\n"
             f"این کد را در منوی اکانت ویژه وارد کنید."
         )
@@ -1289,31 +1340,59 @@ async def mother_messages(bot: Robot, message: Message):
         print("WAITING VIP CODE")
         
         if text in DATA.get("temp_codes", {}):
-            user_id = DATA["temp_codes"][text]
+            code_data = DATA["temp_codes"][text]
+            user_id = code_data["uid"]
+            code_type = code_data["type"]
             
             if user_id == uid:
-                # ارتقا به اکانت ویژه
-                VIP_USERS.add(uid)
-                DATA["vip_users"] = list(VIP_USERS)
-                
-                # حذف کد یکبار مصرف
-                del DATA["temp_codes"][text]
-                save_data()
-                
-                states.pop(uid, None)
-                
-                await message.reply_keypad(
-                    "🎉 **تبریک! شما به اکانت ویژه ارتقا یافتید!** ⭐\n\n"
-                    "امکانات جدید شما:\n"
-                    f"• تعداد ربات‌ها: {VIP_BOT_LIMIT} عدد\n"
-                    "• تعداد دکمه‌ها: نامحدود\n"
-                    "• تعداد آموزش‌ها: نامحدود\n"
-                    "• ویرایش پیام استارت: فعال\n\n"
-                    "از منوی اصلی استفاده کنید:",
-                    build_main_keypad(uid)
-                )
-                
-                return
+                if code_type == "premium":
+                    # ارتقا به اکانت برتر
+                    PREMIUM_USERS.add(uid)
+                    DATA["premium_users"] = list(PREMIUM_USERS)
+                    
+                    # حذف کد یکبار مصرف
+                    del DATA["temp_codes"][text]
+                    save_data()
+                    
+                    states.pop(uid, None)
+                    
+                    await message.reply_keypad(
+                        "👑 **تبریک! شما به اکانت برتر ارتقا یافتید!** 🎉\n\n"
+                        "امکانات جدید شما:\n"
+                        "• تعداد ربات‌ها: نامحدود\n"
+                        "• تعداد دکمه‌ها: نامحدود\n"
+                        "• تعداد آموزش‌ها: نامحدود\n"
+                        "• ویرایش پیام استارت: فعال\n\n"
+                        "از منوی اصلی استفاده کنید:",
+                        build_main_keypad(uid)
+                    )
+                    
+                    return
+                    
+                elif code_type == "vip":
+                    # ارتقا به اکانت ویژه
+                    VIP_USERS.add(uid)
+                    DATA["vip_users"] = list(VIP_USERS)
+                    
+                    # حذف کد یکبار مصرف
+                    del DATA["temp_codes"][text]
+                    save_data()
+                    
+                    states.pop(uid, None)
+                    
+                    await message.reply_keypad(
+                        "⭐ **تبریک! شما به اکانت ویژه ارتقا یافتید!** 🎉\n\n"
+                        "امکانات جدید شما:\n"
+                        f"• تعداد ربات‌ها: {VIP_BOT_LIMIT} عدد\n"
+                        f"• تعداد دکمه‌ها: {VIP_BUTTON_LIMIT} عدد\n"
+                        f"• تعداد آموزش‌ها: {VIP_QUESTION_LIMIT} عدد\n"
+                        "• ویرایش پیام استارت: فعال\n\n"
+                        "از منوی اصلی استفاده کنید:",
+                        build_main_keypad(uid)
+                    )
+                    
+                    return
+                    
             else:
                 await message.reply(
                     "❌ این کد یکبار مصرف متعلق به شما نیست!"
@@ -1409,7 +1488,6 @@ async def mother_messages(bot: Robot, message: Message):
         # به‌روزرسانی منوی اصلی با ربات جدید
         await message.reply_keypad(
             f"✅ ربات '{bot_name}' با موفقیت فعال شد! 🎉\n\n"
-            f"👨‍💻 سازنده: {CREATOR}\n\n"
             "برای مدیریت ربات، از منوی اصلی روی اسم آن کلیک کن:",
             build_main_keypad(uid)
         )
@@ -2038,11 +2116,14 @@ async def start_child_bot(tid):
 
             # پیدا کردن کاربر و ارسال پیام استارت شخصی‌سازی شده
             uid = get_user_id(message)
-            start_message = "👋 سلام! به ربات من خوش آمدی."
+            start_message = "از منوی زیر استفاده کنید:"
             
             if uid:
                 user_data = get_user_data(uid)
-                start_message = user_data.get("start_message", "👋 سلام! به ربات من خوش آمدی.")
+                # اگر کاربر پیام استارت رو ویرایش کرده بود، از اون استفاده کن
+                custom_start = user_data.get("start_message")
+                if custom_start:
+                    start_message = custom_start
                 # فرمت‌دهی پیام (مخفی)
                 start_message = format_text(start_message)
 
@@ -2225,11 +2306,6 @@ async def main():
     )
 
     print(
-        " Creator:",
-        CREATOR
-    )
-
-    print(
         "================================"
     )
 
@@ -2270,4 +2346,4 @@ if __name__ == "__main__":
             "FATAL ERROR:",
             type(e).__name__,
             str(e)
-        )
+    )
