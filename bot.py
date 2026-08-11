@@ -70,6 +70,7 @@ VIP_USERS = set(DATA.get("vip_users", []))
 # =========================================================
 
 states = {}
+current_bot = {}
 
 
 # =========================================================
@@ -77,7 +78,6 @@ states = {}
 # =========================================================
 
 child_bots = {}
-
 child_tasks = {}
 
 
@@ -507,6 +507,7 @@ async def mother_start(bot: Robot, message: Message):
     user_data = get_user_data(uid)
 
     states.pop(uid, None)
+    current_bot.pop(uid, None)
 
     await message.reply_keypad(
         "🤖 ربات مادر فعال است.\n\n"
@@ -517,10 +518,11 @@ async def mother_start(bot: Robot, message: Message):
 
 
 # =========================================================
-# بازگشت به منوی اصلی
+# =========================================================
+# توابع مدیریت ربات (بدون دکوریتور)
 # =========================================================
 
-@mother.on_callback("back_to_main")
+
 async def back_to_main(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -529,6 +531,7 @@ async def back_to_main(bot: Robot, message: Message):
         return
 
     states.pop(uid, None)
+    current_bot.pop(uid, None)
 
     await message.reply_keypad(
         "🤖 منوی اصلی:\n\n"
@@ -537,11 +540,6 @@ async def back_to_main(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# بازگشت به منوی مدیریت ربات
-# =========================================================
-
-@mother.on_callback("back_to_bot_manager")
 async def back_to_bot_manager(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -549,23 +547,17 @@ async def back_to_bot_manager(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await back_to_main(bot, message)
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
     
     if not bot_data:
         await back_to_main(bot, message)
         return
-    
-    states[uid] = {
-        "state": "bot_manager",
-        "bot_id": bot_id
-    }
     
     await message.reply_keypad(
         f"🤖 **مدیریت ربات: {bot_data.get('name', 'ربات')}**\n\n"
@@ -575,11 +567,6 @@ async def back_to_bot_manager(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# افزودن ربات (باید قبل از تابع عمومی تعریف بشه)
-# =========================================================
-
-@mother.on_callback("add_bot")
 async def add_bot(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -617,52 +604,6 @@ async def add_bot(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# انتخاب ربات از منوی اصلی (فقط دکمه‌های bot_ رو مدیریت میکنه)
-# =========================================================
-
-@mother.on_callback()
-async def handle_bot_selection(bot: Robot, message: Message):
-
-    uid = get_user_id(message)
-
-    if not uid:
-        return
-
-    try:
-        button_id = message.aux_data.button_id
-    except Exception:
-        return
-
-    # فقط دکمه‌هایی که با bot_ شروع میشن رو مدیریت کن
-    if not button_id or not button_id.startswith("bot_"):
-        return
-
-    bot_id = button_id.replace("bot_", "")
-    bot_data = find_bot_by_id(uid, bot_id)
-    
-    if not bot_data:
-        await message.reply("❌ ربات پیدا نشد.")
-        return
-    
-    states[uid] = {
-        "state": "bot_manager",
-        "bot_id": bot_id
-    }
-    
-    await message.reply_keypad(
-        f"🤖 **مدیریت ربات: {bot_data.get('name', 'ربات')}**\n\n"
-        f"تعداد دکمه‌ها: {len(bot_data.get('buttons', []))}\n"
-        f"تعداد آموزش‌ها: {len(bot_data.get('questions', {}))}",
-        bot_manager_keypad(bot_data.get('name', 'ربات'))
-    )
-
-
-# =========================================================
-# منوی اکانت ویژه
-# =========================================================
-
-@mother.on_callback("menu_vip")
 async def menu_vip(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -693,11 +634,6 @@ async def menu_vip(bot: Robot, message: Message):
     }
 
 
-# =========================================================
-# منوی دکمه‌ها
-# =========================================================
-
-@mother.on_callback("menu_buttons")
 async def menu_buttons(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -705,13 +641,12 @@ async def menu_buttons(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
 
     if not bot_data:
@@ -725,11 +660,6 @@ async def menu_buttons(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# منوی آموزش‌ها
-# =========================================================
-
-@mother.on_callback("menu_trainings")
 async def menu_trainings(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -737,13 +667,12 @@ async def menu_trainings(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
 
     if not bot_data:
@@ -757,11 +686,6 @@ async def menu_trainings(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# ویرایش پیام استارت
-# =========================================================
-
-@mother.on_callback("edit_start")
 async def edit_start(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -769,13 +693,12 @@ async def edit_start(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     user_data = get_user_data(uid)
     current_start = user_data.get("start_message", "👋 سلام! به ربات من خوش آمدی.")
 
@@ -791,11 +714,44 @@ async def edit_start(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# ساخت دکمه
-# =========================================================
+async def delete_bot(bot: Robot, message: Message):
 
-@mother.on_callback("make_button")
+    uid = get_user_id(message)
+
+    if not uid:
+        return
+
+    bot_id = current_bot.get(uid)
+    
+    if not bot_id:
+        await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
+        return
+    
+    user_data = get_user_data(uid)
+    
+    if bot_id not in user_data["bots"]:
+        await message.reply("❌ ربات پیدا نشد.")
+        return
+
+    # حذف ربات
+    del user_data["bots"][bot_id]
+    save_data()
+    
+    # حذف ربات از لیست فعال
+    if bot_id in child_bots:
+        del child_bots[bot_id]
+    if bot_id in child_tasks:
+        del child_tasks[bot_id]
+    
+    states.pop(uid, None)
+    current_bot.pop(uid, None)
+    
+    await message.reply_keypad(
+        f"✅ ربات با موفقیت حذف شد!",
+        build_main_keypad(uid)
+    )
+
+
 async def make_button(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -803,21 +759,18 @@ async def make_button(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
 
     if not bot_data:
-
         await message.reply(
             "❌ ربات پیدا نشد."
         )
-
         return
 
     # بررسی محدودیت تعداد دکمه‌ها
@@ -849,11 +802,6 @@ async def make_button(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# ویرایش دکمه‌ها
-# =========================================================
-
-@mother.on_callback("edit_buttons")
 async def edit_buttons(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -861,29 +809,24 @@ async def edit_buttons(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
 
     if not bot_data:
-
         await message.reply(
             "❌ ربات پیدا نشد."
         )
-
         return
 
     if not bot_data["buttons"]:
-
         await message.reply(
             "❌ هیچ دکمه‌ای برای ویرایش وجود ندارد."
         )
-
         return
 
     states[uid] = {
@@ -903,11 +846,6 @@ async def edit_buttons(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# حذف دکمه‌ها
-# =========================================================
-
-@mother.on_callback("delete_buttons")
 async def delete_buttons(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -915,29 +853,24 @@ async def delete_buttons(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
 
     if not bot_data:
-
         await message.reply(
             "❌ ربات پیدا نشد."
         )
-
         return
 
     if not bot_data["buttons"]:
-
         await message.reply(
             "❌ هیچ دکمه‌ای برای حذف وجود ندارد."
         )
-
         return
 
     states[uid] = {
@@ -958,54 +891,6 @@ async def delete_buttons(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# حذف ربات
-# =========================================================
-
-@mother.on_callback("delete_bot")
-async def delete_bot(bot: Robot, message: Message):
-
-    uid = get_user_id(message)
-
-    if not uid:
-        return
-
-    state_data = states.get(uid)
-    
-    if not state_data or "bot_id" not in state_data:
-        await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
-        return
-    
-    bot_id = state_data["bot_id"]
-    user_data = get_user_data(uid)
-    
-    if bot_id not in user_data["bots"]:
-        await message.reply("❌ ربات پیدا نشد.")
-        return
-
-    # حذف ربات
-    del user_data["bots"][bot_id]
-    save_data()
-    
-    # حذف ربات از لیست فعال
-    if bot_id in child_bots:
-        del child_bots[bot_id]
-    if bot_id in child_tasks:
-        del child_tasks[bot_id]
-    
-    states.pop(uid, None)
-    
-    await message.reply_keypad(
-        f"✅ ربات با موفقیت حذف شد!",
-        build_main_keypad(uid)
-    )
-
-
-# =========================================================
-# آموزش جدید
-# =========================================================
-
-@mother.on_callback("training")
 async def training(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -1013,21 +898,18 @@ async def training(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
 
     if not bot_data:
-
         await message.reply(
             "❌ ربات پیدا نشد."
         )
-
         return
 
     # بررسی محدودیت تعداد آموزش‌ها
@@ -1059,11 +941,6 @@ async def training(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# ویرایش آموزش‌ها
-# =========================================================
-
-@mother.on_callback("edit_training")
 async def edit_training(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -1071,29 +948,24 @@ async def edit_training(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
 
     if not bot_data:
-
         await message.reply(
             "❌ ربات پیدا نشد."
         )
-
         return
 
     if not bot_data["questions"]:
-
         await message.reply(
             "❌ هیچ آموزشی برای ویرایش وجود ندارد."
         )
-
         return
 
     states[uid] = {
@@ -1113,11 +985,6 @@ async def edit_training(bot: Robot, message: Message):
     )
 
 
-# =========================================================
-# حذف آموزش‌ها
-# =========================================================
-
-@mother.on_callback("delete_training")
 async def delete_training(bot: Robot, message: Message):
 
     uid = get_user_id(message)
@@ -1125,29 +992,24 @@ async def delete_training(bot: Robot, message: Message):
     if not uid:
         return
 
-    state_data = states.get(uid)
+    bot_id = current_bot.get(uid)
     
-    if not state_data or "bot_id" not in state_data:
+    if not bot_id:
         await message.reply("❌ لطفاً ابتدا یک ربات را انتخاب کنید.")
         return
     
-    bot_id = state_data["bot_id"]
     bot_data = find_bot_by_id(uid, bot_id)
 
     if not bot_data:
-
         await message.reply(
             "❌ ربات پیدا نشد."
         )
-
         return
 
     if not bot_data["questions"]:
-
         await message.reply(
             "❌ هیچ آموزشی برای حذف وجود ندارد."
         )
-
         return
 
     states[uid] = {
@@ -1187,21 +1049,127 @@ async def mother_messages(bot: Robot, message: Message):
 
     text = str(text).strip()
 
+    print("INCOMING TEXT:", repr(text))
+
+    state_data = states.get(uid)
+    print("STATE:", state_data)
+
     # =====================================================
-    # خیلی مهم:
-    # دستورات را وارد سیستم توکن/آموزش نکن
+    # خیلی مهم: دستورات را نادیده بگیر
     # =====================================================
 
     if text.startswith("/"):
+        print("COMMAND IGNORED:", repr(text))
         return
 
-    state_data = states.get(uid)
+    # =====================================================
+    # دکمه‌های کیبورد ChatKeypad - دیسپچر
+    # =====================================================
+
+    # دکمه‌های منوی اصلی
+    if text == "➕ افزودن ربات":
+        print("KEYBOARD BUTTON: ➕ افزودن ربات")
+        await add_bot(bot, message)
+        return
+
+    if text == "⭐ اکانت ویژه":
+        print("KEYBOARD BUTTON: ⭐ اکانت ویژه")
+        await menu_vip(bot, message)
+        return
+
+    # دکمه‌های منوی مدیریت ربات
+    if text == "🔘 دکمه‌ها":
+        print("KEYBOARD BUTTON: 🔘 دکمه‌ها")
+        await menu_buttons(bot, message)
+        return
+
+    if text == "📚 آموزش‌ها":
+        print("KEYBOARD BUTTON: 📚 آموزش‌ها")
+        await menu_trainings(bot, message)
+        return
+
+    if text == "✏️ پیام استارت":
+        print("KEYBOARD BUTTON: ✏️ پیام استارت")
+        await edit_start(bot, message)
+        return
+
+    if text == "🗑 حذف ربات":
+        print("KEYBOARD BUTTON: 🗑 حذف ربات")
+        await delete_bot(bot, message)
+        return
+
+    # دکمه‌های منوی دکمه‌ها
+    if text == "➕ ساخت دکمه":
+        print("KEYBOARD BUTTON: ➕ ساخت دکمه")
+        await make_button(bot, message)
+        return
+
+    if text == "✏️ ویرایش دکمه":
+        print("KEYBOARD BUTTON: ✏️ ویرایش دکمه")
+        await edit_buttons(bot, message)
+        return
+
+    if text == "🗑 حذف دکمه":
+        print("KEYBOARD BUTTON: 🗑 حذف دکمه")
+        await delete_buttons(bot, message)
+        return
+
+    # دکمه‌های منوی آموزش‌ها
+    if text == "➕ آموزش جدید":
+        print("KEYBOARD BUTTON: ➕ آموزش جدید")
+        await training(bot, message)
+        return
+
+    if text == "✏️ ویرایش آموزش":
+        print("KEYBOARD BUTTON: ✏️ ویرایش آموزش")
+        await edit_training(bot, message)
+        return
+
+    if text == "🗑 حذف آموزش":
+        print("KEYBOARD BUTTON: 🗑 حذف آموزش")
+        await delete_training(bot, message)
+        return
+
+    # دکمه‌های بازگشت
+    if text == "🔙 بازگشت":
+        print("KEYBOARD BUTTON: 🔙 بازگشت")
+        # بررسی کنید که کاربر در کجاست
+        if state_data and state_data.get("state") in ["buttons_menu", "trainings_menu"]:
+            await back_to_bot_manager(bot, message)
+        else:
+            await back_to_main(bot, message)
+        return
+
+    # =====================================================
+    # انتخاب ربات از منوی اصلی (بر اساس اسم ربات)
+    # =====================================================
+
+    user_data = get_user_data(uid)
+    bots = user_data["bots"]
+    
+    # حذف ایموجی 🤖 از ابتدای متن
+    clean_text = text
+    if clean_text.startswith("🤖 "):
+        clean_text = clean_text[2:]  # حذف "🤖 " از ابتدای متن
+    
+    for bot_id, bot_data in bots.items():
+        if bot_data.get("name") == clean_text:
+            print(f"BOT SELECTED: {clean_text} (ID: {bot_id})")
+            current_bot[uid] = bot_id
+            await message.reply_keypad(
+                f"🤖 **مدیریت ربات: {bot_data.get('name', 'ربات')}**\n\n"
+                f"تعداد دکمه‌ها: {len(bot_data.get('buttons', []))}\n"
+                f"تعداد آموزش‌ها: {len(bot_data.get('questions', {}))}",
+                bot_manager_keypad(bot_data.get('name', 'ربات'))
+            )
+            return
 
     # =====================================================
     # بررسی کد مخفی (فقط سازنده می‌دونه)
     # =====================================================
     
     if text == SECRET_CODE:
+        print("SECRET CODE DETECTED")
         # تولید کد یکبار مصرف
         temp_code = generate_temp_code()
         
@@ -1230,6 +1198,7 @@ async def mother_messages(bot: Robot, message: Message):
     # =====================================================
     
     if state_data and state_data.get("state") == "waiting_vip_code":
+        print("WAITING VIP CODE")
         
         if text in DATA.get("temp_codes", {}):
             user_id = DATA["temp_codes"][text]
@@ -1269,9 +1238,11 @@ async def mother_messages(bot: Robot, message: Message):
             return
 
     if not state_data:
+        print("NO STATE, IGNORING")
         return
 
     state = state_data.get("state")
+    print("PROCESSING STATE:", state)
 
 
     # =====================================================
@@ -1343,11 +1314,8 @@ async def mother_messages(bot: Robot, message: Message):
 
         states.pop(uid, None)
 
-        # ذخیره bot_id در state برای مدیریت بعدی
-        states[uid] = {
-            "state": "bot_manager",
-            "bot_id": tid
-        }
+        # ذخیره bot_id در current_bot برای مدیریت بعدی
+        current_bot[uid] = tid
 
         # به‌روزرسانی منوی اصلی با ربات جدید
         await message.reply_keypad(
@@ -1374,10 +1342,7 @@ async def mother_messages(bot: Robot, message: Message):
         user_data["start_message"] = format_text(text)
         save_data()
         
-        states[uid] = {
-            "state": "bot_manager",
-            "bot_id": bot_id
-        }
+        current_bot[uid] = bot_id
         
         bot_data = find_bot_by_id(uid, bot_id)
 
@@ -1467,10 +1432,7 @@ async def mother_messages(bot: Robot, message: Message):
 
         save_data()
 
-        states[uid] = {
-            "state": "bot_manager",
-            "bot_id": bot_id
-        }
+        current_bot[uid] = bot_id
 
         await message.reply_keypad(
             "✅ دکمه با موفقیت ساخته شد! 🎉\n\n"
@@ -1568,10 +1530,7 @@ async def mother_messages(bot: Robot, message: Message):
 
         save_data()
 
-        states[uid] = {
-            "state": "bot_manager",
-            "bot_id": bot_id
-        }
+        current_bot[uid] = bot_id
 
         await message.reply_keypad(
             "🧠 آموزش با موفقیت ذخیره شد! ✅\n\n"
@@ -1682,10 +1641,7 @@ async def mother_messages(bot: Robot, message: Message):
             bot_data["buttons"][index]["response"] = new_response
             save_data()
             
-            states[uid] = {
-                "state": "bot_manager",
-                "bot_id": bot_id
-            }
+            current_bot[uid] = bot_id
             
             await message.reply_keypad(
                 "✅ دکمه با موفقیت ویرایش شد! 🎉\n\n"
@@ -1732,10 +1688,7 @@ async def mother_messages(bot: Robot, message: Message):
         if text == "0":
             bot_data["buttons"] = []
             save_data()
-            states[uid] = {
-                "state": "bot_manager",
-                "bot_id": bot_id
-            }
+            current_bot[uid] = bot_id
             await message.reply_keypad(
                 "✅ همه دکمه‌ها حذف شدند.",
                 bot_manager_keypad(bot_data.get('name', 'ربات'))
@@ -1761,10 +1714,7 @@ async def mother_messages(bot: Robot, message: Message):
             if 0 <= index < len(bot_data["buttons"]):
                 deleted_button = bot_data["buttons"].pop(index)
                 save_data()
-                states[uid] = {
-                    "state": "bot_manager",
-                    "bot_id": bot_id
-                }
+                current_bot[uid] = bot_id
                 await message.reply_keypad(
                     f"✅ دکمه '{deleted_button['text']}' حذف شد.",
                     bot_manager_keypad(bot_data.get('name', 'ربات'))
@@ -1896,10 +1846,7 @@ async def mother_messages(bot: Robot, message: Message):
         bot_data["questions"][new_question] = new_answer
         save_data()
         
-        states[uid] = {
-            "state": "bot_manager",
-            "bot_id": bot_id
-        }
+        current_bot[uid] = bot_id
 
         await message.reply_keypad(
             "✅ آموزش با موفقیت ویرایش شد! 🎉\n\n"
@@ -1930,10 +1877,7 @@ async def mother_messages(bot: Robot, message: Message):
         if text == "0":
             bot_data["questions"] = {}
             save_data()
-            states[uid] = {
-                "state": "bot_manager",
-                "bot_id": bot_id
-            }
+            current_bot[uid] = bot_id
             await message.reply_keypad(
                 "✅ همه آموزش‌ها حذف شدند.",
                 bot_manager_keypad(bot_data.get('name', 'ربات'))
@@ -1947,10 +1891,7 @@ async def mother_messages(bot: Robot, message: Message):
                 deleted_question = questions_list[index]
                 del bot_data["questions"][deleted_question]
                 save_data()
-                states[uid] = {
-                    "state": "bot_manager",
-                    "bot_id": bot_id
-                }
+                current_bot[uid] = bot_id
                 await message.reply_keypad(
                     f"✅ آموزش '{deleted_question}' حذف شد.",
                     bot_manager_keypad(bot_data.get('name', 'ربات'))
@@ -1962,5 +1903,59 @@ async def mother_messages(bot: Robot, message: Message):
 
         return
 
+    # اگر هیچکدام از حالت‌ها نبود
+    print("UNHANDLED MESSAGE:", repr(text))
 
-# 
+
+# =========================================================
+# اجرای ربات فرزند
+# =========================================================
+
+async def start_child_bot(tid):
+
+    # اگر قبلاً در حال اجراست
+    if tid in child_tasks:
+
+        task = child_tasks[tid]
+
+        if not task.done():
+            return
+
+    bot = child_bots.get(tid)
+
+    if not bot:
+        return
+
+    async def runner():
+
+        # -------------------------------
+        # /start
+        # -------------------------------
+
+        @bot.on_message(commands=["start"])
+        async def child_start(
+            child_bot: Robot,
+            message: Message
+        ):
+
+            data = find_bot_data(tid)
+
+            if not data:
+                return
+
+            keypad = child_keyboard(
+                data["buttons"]
+            )
+
+            # پیدا کردن کاربر و ارسال پیام استارت شخصی‌سازی شده
+            uid = get_user_id(message)
+            start_message = "👋 سلام! به ربات من خوش آمدی."
+            
+            if uid:
+                user_data = get_user_data(uid)
+                start_message = user_data.get("start_message", "👋 سلام! به ربات من خوش آمدی.")
+                # فرمت‌دهی پیام (مخفی)
+                start_message = format_text(start_message)
+
+            await message.reply_keypad(
+                
