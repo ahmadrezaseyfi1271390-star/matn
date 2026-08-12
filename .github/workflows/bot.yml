@@ -1,16 +1,24 @@
 name: Rubika Bot
 
 on:
-  workflow_dispatch:
-  push:
+  workflow_dispatch:  # اجرای دستی
+  push:               # اجرا با هر push
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 ساعت
 
     steps:
       - name: Get code
         uses: actions/checkout@v4
+
+      - name: Download previous database
+        uses: actions/download-artifact@v4
+        with:
+          name: bot-database
+          path: .
+        continue-on-error: true
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -18,9 +26,18 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run bot
         env:
           RUBIKA_TOKEN: ${{ secrets.RUBIKA_TOKEN }}
         run: python bot.py
+
+      - name: Upload database
+        if: always()  # حتی اگر خطا هم بیاد، دیتابیس رو ذخیره کن
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-database
+          path: bots.json
