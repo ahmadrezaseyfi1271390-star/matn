@@ -7,11 +7,18 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 4320  # حداکثر 3 روز (4320 دقیقه)
 
     steps:
       - name: Get code
         uses: actions/checkout@v4
+
+      - name: Download previous database
+        uses: actions/download-artifact@v4
+        with:
+          name: bot-database
+          path: .
+        continue-on-error: true
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -21,10 +28,18 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install rubka requests
 
       - name: Run bot
         env:
+          RUBIKA_TOKEN: ${{ secrets.RUBIKA_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
         run: python bot.py
+
+      - name: Upload database
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-database
+          path: bots.json
