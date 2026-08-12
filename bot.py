@@ -5,6 +5,8 @@ import hashlib
 import random
 import string
 from pathlib import Path
+import requests
+import time
 
 from rubka import Robot
 from rubka.context import Message
@@ -19,9 +21,13 @@ MOTHER_TOKEN = "CBFHDH0GNRJXCUWLGMDAALCISLAKUVPNZFGEZULWRBGAUZYMRTNCENCKFJNRMSDK
 
 CREATOR = "@reza_127_s"
 
-# تعیین مسیر مطلق برای فایل دیتابیس
+# تعیین مسیر مطلق برای فایل دیتابیس محلی (به عنوان پشتیبان)
 BASE_DIR = Path(__file__).parent.absolute()
 DATA_FILE = os.path.join(BASE_DIR, "bots.json")
+
+# تنظیمات Gist (از Secrets می‌گیریم)
+GIST_ID = os.environ.get("GIST_ID") or ""
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or ""
 
 # محدودیت‌ها برای اکانت ساده
 FREE_BOT_LIMIT = 1
@@ -44,37 +50,154 @@ PREMIUM_SECRET_CODE = "1234567891390"
 
 
 # =========================================================
-# دیتابیس ساده JSON
+# سیستم ذخیره‌سازی دائمی با Gist
 # =========================================================
 
-def load_data():
-    if not os.path.exists(DATA_FILE):
-        print(f"📁 فایل دیتابیس وجود ندارد، ایجاد میکنم: {DATA_FILE}")
-        return {"users": {}, "vip_users": [], "premium_users": [], "temp_codes": {}}
-
+def save_to_gist(data):
+    """ذخیره دیتابیس روی Gist"""
+    if not GITHUB_TOKEN or not GIST_ID:
+        print("⚠️ Gist تنظیم نشده، فقط فایل محلی ذخیره میشه")
+        return False
+    
     try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            print(f"✅ دیتابیس بارگذاری شد: {DATA_FILE}")
-            return data
+        url = f"https://api.github.com/gists/{GIST_ID}"
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        # تبدیل به JSON با مرتب‌سازی کلیدها برای ثبات
+        json_content = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True)
+        
+        payload = {
+            "files": {
+                "bots.json": {
+                    "content": json_content
+                }
+            }
+        }
+        
+        response = requests.patch(url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            print("✅ دیتابیس روی Gist ذخیره شد")
+            return True
+        else:
+            print(f"❌ خطا در ذخیره روی Gist: {response.status_code}")
+            print(f"   پاسخ: {response.text[:200]}")
+            return False
+            
+    except requests.exceptions.Timeout:
+        print("⏰ Timeout در اتصال به Gist")
+        return False
     except Exception as e:
-        print(f"❌ خطا در خواندن دیتابیس: {e}")
-        return {"users": {}, "vip_users": [], "premium_users": [], "temp_codes": {}}
+        print(f"❌ خطا در ذخیره روی Gist: {e}")
+        return False
 
+def load_from_gist():
+    """بارگذاری دیتابیس از Gist"""
+    if not GITHUB_TOKEN or not GIST_ID:
+        print("⚠️ Gist تنظیم نشده")
+        return None
+    
+    try:
+        url = f"https://api.github.com/gists/{GIST_ID}"
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            gist_data = response.json()
+            content = gist_data["files"]["bots.json"]["content"]
+            data = json.loads(content)
+            print("✅ دیتابیس از Gist بارگذاری شد")
+            return data
+        else:
+            print(f"❌ خطا در بارگذاری از Gist: {response.status_code}")
+            return None
+            
+    except requests.exceptions.Timeout:
+        print("⏰ Timeout در اتصال به Gist")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"❌ خطا در دیکد کردن JSON از Gist: {e}")
+        return None
+    except Exception as e:
+        print(f"❌ خطا در بارگذاری از Gist: {e}")
+        return None
+
+def load_data():
+    """بارگذاری دیتابیس - اولویت با Gist، سپس فایل محلی"""
+    
+    # اول از Gist بارگذاری کن
+    if GITHUB_TOKEN and GIST_ID:
+        data = load_from_gist()
+        if data:
+            # ذخیره محلی به عنوان پشتیبان
+            try:
+                with open(DATA_FILE, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=True)
+            except:
+                pass
+            return data
+    
+    # اگر Gist کار نکرد، از فایل محلی
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                print(f"✅ دیتابیس از فایل محلی بارگذاری شد")
+                return data
+        except json.JSONDecodeError as e:
+            print(f"❌ فایل دیتابیس خراب است: {e}")
+            # سعی کن یک بکاپ بازیابی کنی
+            backup_file = DATA_FILE + ".backup"
+            if os.path.exists(backup_file):
+                try:
+                    with open(backup_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        print(f"✅ دیتابیس از فایل بکاپ بارگذاری شد")
+                        return data
+                except:
+                    pass
+        except Exception as e:
+            print(f"❌ خطا در خواندن دیتابیس: {e}")
+    
+    # اگر هیچکدام نبود، دیتابیس جدید
+    print("📁 دیتابیس جدید ایجاد شد")
+    return {"users": {}, "vip_users": [], "premium_users": [], "temp_codes": {}}
 
 def save_data():
+    """ذخیره دیتابیس - هم در فایل محلی و هم در Gist"""
+    
+    # ذخیره محلی با بکاپ
     try:
+        # اول فایل بکاپ
+        if os.path.exists(DATA_FILE):
+            try:
+                import shutil
+                shutil.copy2(DATA_FILE, DATA_FILE + ".backup")
+            except:
+                pass
+        
+        # ذخیره فایل اصلی
         with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(
-                DATA,
-                f,
-                ensure_ascii=False,
-                indent=2
-            )
-        print(f"💾 دیتابیس ذخیره شد: {DATA_FILE}")
+            json.dump(DATA, f, ensure_ascii=False, indent=2, sort_keys=True)
+        print(f"💾 دیتابیس محلی ذخیره شد: {DATA_FILE}")
     except Exception as e:
-        print(f"❌ خطا در ذخیره دیتابیس: {e}")
+        print(f"❌ خطا در ذخیره محلی: {e}")
+    
+    # ذخیره روی Gist
+    if GITHUB_TOKEN and GIST_ID:
+        save_to_gist(DATA)
 
+
+# =========================================================
+# بارگذاری اولیه دیتابیس
+# =========================================================
 
 DATA = load_data()
 
@@ -2310,6 +2433,7 @@ async def main():
     )
 
     print(f"📁 مسیر دیتابیس: {DATA_FILE}")
+    print(f"🔐 Gist تنظیم شده: {'✅' if GITHUB_TOKEN and GIST_ID else '❌'}")
 
     # ربات‌های قبلی
     await restore_child_bots()
@@ -2346,4 +2470,4 @@ if __name__ == "__main__":
             "FATAL ERROR:",
             type(e).__name__,
             str(e)
-        )
+    )
