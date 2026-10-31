@@ -1,2140 +1,466 @@
-
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>موسیقی من</title>
-<script src="https://cdn.jsdelivr.net/npm/browser-id3-writer@5.0.0/dist/browser-id3-writer.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>مبارزه سه‌بعدی</title>
 <style>
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    -webkit-tap-highlight-color: transparent;
-  }
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; overflow: hidden; background: #0a0a1a; touch-action: none; }
+  canvas { display: block; }
 
-  html, body {
-    width: 100%;
-    height: 100%;
-    background: #000;
-    overflow: hidden;
-    color: #fff;
-  }
+  #hud { position: fixed; top: 15px; left: 15px; right: 15px; pointer-events: none; z-index: 10; }
+  #health-bar { width: 220px; height: 22px; background: rgba(0,0,0,0.6); border: 2px solid #fff; border-radius: 12px; overflow: hidden; margin-bottom: 8px; }
+  #health-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff2222, #ffaa00, #22ff22); transition: width 0.2s; }
+  #score, #enemies { color: #fff; font-size: 16px; font-weight: bold; text-shadow: 2px 2px 4px #000; margin-bottom: 4px; }
 
-  :root {
-    --bg-primary: #0a0a0a;
-    --bg-card: #151515;
-    --text-primary: #ffffff;
-    --text-muted: #666666;
-    --text-secondary: #aaaaaa;
-    --border-color: #1f1f1f;
-    --accent-color: #e94560;
-    --accent-secondary: #f39c12;
-  }
+  #joystick-zone { position: fixed; bottom: 30px; left: 30px; width: 160px; height: 160px; z-index: 20; touch-action: none; }
+  #joystick-base { width: 100%; height: 100%; border-radius: 50%; background: rgba(255,255,255,0.12); border: 3px solid rgba(255,255,255,0.4); position: relative; backdrop-filter: blur(4px); }
+  #joystick-stick { width: 65px; height: 65px; border-radius: 50%; background: rgba(255,255,255,0.7); position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 20px rgba(0,200,255,0.6); }
 
+  #punch-btn { position: fixed; bottom: 45px; right: 35px; width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle, #ff4444, #aa0000); border: 4px solid #fff; color: #fff; font-size: 44px; z-index: 20; touch-action: none; box-shadow: 0 0 30px rgba(255,50,50,0.7); cursor: pointer; transition: transform 0.05s; }
+  #punch-btn:active { transform: scale(0.9); }
+
+  #loading { position: fixed; inset: 0; background: #0a0a1a; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; z-index: 100; flex-direction: column; gap: 20px; }
+  .spinner { width: 60px; height: 60px; border: 5px solid rgba(255,255,255,0.2); border-top-color: #00ccff; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #game-over { position: fixed; inset: 0; background: rgba(0,0,0,0.85); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; gap: 20px; }
+  #game-over h1 { font-size: 48px; color: #ff4444; text-shadow: 0 0 20px #ff0000; }
+  #game-over p { font-size: 24px; }
+  #restart-btn { padding: 15px 40px; font-size: 20px; font-weight: bold; background: #00ccff; border: none; border-radius: 12px; color: #fff; cursor: pointer; }
   .hidden { display: none !important; }
-
-  /* صفحه ۱: لودینگ اولیه */
-  #initialLoading {
-    position: fixed;
-    inset: 0;
-    background: #000;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: center;
-    padding-bottom: 60px;
-  }
-
-  #initialLoading .loader-text {
-    color: #aaa;
-    font-size: 14px;
-    letter-spacing: 1px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  #initialLoading .dots {
-    display: inline-flex;
-    gap: 2px;
-  }
-
-  #initialLoading .dots span {
-    animation: dotBlink 1.4s infinite;
-    opacity: 0.3;
-  }
-
-  #initialLoading .dots span:nth-child(2) { animation-delay: 0.2s; }
-  #initialLoading .dots span:nth-child(3) { animation-delay: 0.4s; }
-
-  @keyframes dotBlink {
-    0%, 60%, 100% { opacity: 0.3; }
-    30% { opacity: 1; }
-  }
-
-  #initialLoading .error-box {
-    color: #e94560;
-    text-align: center;
-    padding: 20px;
-    font-size: 14px;
-    line-height: 1.8;
-    max-width: 320px;
-  }
-
-  #initialLoading .error-box button {
-    margin-top: 15px;
-    padding: 12px 28px;
-    background: linear-gradient(135deg, #e94560, #f39c12);
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  #initialLoading .error-box button:active { transform: scale(0.97); }
-
-  /* صفحه ۲: اسپلش */
-  #splashScreen {
-    position: fixed;
-    inset: 0;
-    z-index: 9998;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    background: #0a0a0a;
-    transition: opacity 0.4s ease;
-    padding: 0 0 100px 0;
-  }
-
-  #splashScreen.hidden { opacity: 0; pointer-events: none; }
-
-  .splash-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 20px;
-    width: 100%;
-    padding: 20px;
-  }
-
-  .splash-image {
-    width: 200px;
-    height: 200px;
-    border-radius: 24px;
-    object-fit: contain;
-  }
-
-  .splash-title {
-    color: #fff;
-    font-size: 22px;
-    font-weight: 500;
-    letter-spacing: 3px;
-  }
-
-  .splash-version {
-    color: #666;
-    font-size: 13px;
-    letter-spacing: 2px;
-    margin-top: 10px;
-  }
-
-  .splash-progress-bottom {
-    position: absolute;
-    bottom: 30px;
-    left: 0;
-    right: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 0 30px;
-  }
-
-  .splash-progress-bottom .progress-bar {
-    flex: 1;
-    max-width: 400px;
-    height: 4px;
-    border-radius: 4px;
-    overflow: hidden;
-    background: #1f1f1f;
-  }
-
-  .splash-progress-bottom .progress-fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #e94560, #f39c12);
-    border-radius: 4px;
-    transition: width 0.08s linear;
-  }
-
-  .splash-progress-bottom .progress-text {
-    color: #aaa;
-    font-size: 12px;
-    letter-spacing: 1px;
-    min-width: 40px;
-    text-align: center;
-    font-weight: 600;
-  }
-
-  /* صفحه ۳: اصلی */
-  #homeScreen {
-    position: fixed;
-    inset: 0;
-    background: #0a0a0a;
-    display: flex;
-    flex-direction: column;
-    z-index: 100;
-  }
-
-  .top-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 16px;
-    background: #0a0a0a;
-    border-bottom: 1px solid #1a1a1a;
-    flex-shrink: 0;
-  }
-
-  .top-logo {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    object-fit: contain;
-    flex-shrink: 0;
-    background: #151515;
-  }
-
-  .search-box {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    background: #151515;
-    border: 1px solid #222;
-    border-radius: 12px;
-    padding: 0 12px;
-    height: 42px;
-    transition: 0.2s;
-  }
-
-  .search-box:focus-within {
-    border-color: #e94560;
-    background: #1a1a1a;
-  }
-
-  .search-box .search-icon {
-    color: #666;
-    font-size: 16px;
-    margin-left: 6px;
-  }
-
-  .search-box input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    outline: none;
-    color: #fff;
-    font-size: 14px;
-    padding: 0 6px;
-  }
-
-  .search-box input::placeholder { color: #555; }
-
-  .songs-area {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    padding-bottom: 100px;
-  }
-
-  .songs-area::-webkit-scrollbar { width: 0; }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #555;
-    text-align: center;
-    padding: 20px;
-  }
-
-  .empty-state .icon { font-size: 4rem; opacity: 0.3; margin-bottom: 16px; }
-  .empty-state p { font-size: 0.95rem; margin-bottom: 6px; }
-  .empty-state span { font-size: 0.8rem; color: #444; }
-
-  .songs-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 14px;
-  }
-
-  .song-card {
-    background: #151515;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid #1f1f1f;
-    transition: 0.25s;
-    cursor: pointer;
-  }
-
-  .song-card:active {
-    transform: scale(0.97);
-    border-color: #e94560;
-  }
-
-  .song-cover {
-    width: 100%;
-    aspect-ratio: 1/1;
-    background: linear-gradient(135deg, #1a1a2e, #e94560);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .song-cover img { width: 100%; height: 100%; object-fit: cover; }
-  .song-cover .cover-placeholder { font-size: 3rem; opacity: 0.4; }
-
-  .song-cover .play-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: 0.2s;
-    font-size: 2.5rem;
-  }
-
-  .song-card:active .play-overlay { opacity: 1; }
-
-  .song-card-info { padding: 10px 12px; }
-
-  .song-card-title {
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 3px;
-  }
-
-  .song-card-artist {
-    color: #888;
-    font-size: 0.75rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* دکمه + سمت راست */
-  .fab-add {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #e94560, #f39c12);
-    border: none;
-    color: #fff;
-    font-size: 28px;
-    font-weight: 300;
-    cursor: pointer;
-    box-shadow: 0 8px 24px rgba(233, 69, 96, 0.5);
-    transition: 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 50;
-    line-height: 1;
-    padding-bottom: 4px;
-  }
-
-  .fab-add:active { transform: scale(0.92); }
-
-  /* صفحه ۴: آپلود */
-  #uploadScreen {
-    position: fixed;
-    inset: 0;
-    background: #0a0a0a;
-    z-index: 200;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-  }
-
-  .upload-header {
-    display: flex;
-    align-items: center;
-    padding: 14px 16px;
-    border-bottom: 1px solid #1a1a1a;
-    background: #0a0a0a;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    flex-shrink: 0;
-  }
-
-  .back-btn {
-    background: transparent;
-    border: none;
-    color: #fff;
-    font-size: 22px;
-    cursor: pointer;
-    padding: 6px 12px;
-    border-radius: 8px;
-    transition: 0.2s;
-  }
-
-  .back-btn:active { background: #1a1a1a; }
-
-  .upload-header h2 {
-    flex: 1;
-    color: #fff;
-    font-size: 1.05rem;
-    font-weight: 600;
-    text-align: center;
-    margin-left: -30px;
-  }
-
-  .upload-body {
-    padding: 16px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding-bottom: 40px;
-  }
-
-  .step-card {
-    background: #151515;
-    border-radius: 14px;
-    padding: 16px;
-    border: 1px solid #1f1f1f;
-  }
-
-  .step-title {
-    color: #fff;
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .step-num {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #e94560, #f39c12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #fff;
-    flex-shrink: 0;
-  }
-
-  .btn {
-    width: 100%;
-    padding: 13px;
-    border: none;
-    border-radius: 10px;
-    font-size: 0.9rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  .btn-primary {
-    background: linear-gradient(135deg, #e94560, #f39c12);
-    color: #fff;
-  }
-
-  .btn-primary:active { transform: scale(0.98); }
-  .btn-primary:disabled { background: #333; cursor: not-allowed; opacity: 0.6; }
-
-  .btn-secondary {
-    background: #1c1c1c;
-    color: #fff;
-    border: 1px solid #2a2a2a;
-  }
-
-  .btn-secondary:active { background: #252525; }
-
-  .btn-success {
-    background: linear-gradient(135deg, #10ac84, #1dd1a1);
-    color: #fff;
-    box-shadow: 0 4px 16px rgba(29, 209, 161, 0.3);
-  }
-
-  .field { margin-bottom: 14px; }
-  .field:last-child { margin-bottom: 0; }
-
-  .field label {
-    display: block;
-    font-size: 0.78rem;
-    color: #888;
-    margin-bottom: 6px;
-    font-weight: 600;
-  }
-
-  .field input {
-    width: 100%;
-    padding: 12px 14px;
-    border-radius: 10px;
-    border: 1px solid #2a2a2a;
-    background: #0d0d0d;
-    color: #fff;
-    font-size: 0.92rem;
-    outline: none;
-    transition: 0.2s;
-  }
-
-  .field input:focus {
-    border-color: #e94560;
-    background: #111;
-  }
-
-  .cover-preview {
-    width: 100%;
-    height: 200px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #1a1a2e, #e94560);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    margin-bottom: 12px;
-  }
-
-  .cover-preview img { width: 100%; height: 100%; object-fit: cover; }
-  .cover-preview .placeholder { font-size: 4rem; opacity: 0.4; }
-
-  .audio-info {
-    background: #0d0d0d;
-    border-radius: 10px;
-    padding: 12px;
-    font-size: 0.78rem;
-    color: #888;
-    margin-top: 12px;
-    word-break: break-all;
-    line-height: 1.7;
-    border: 1px solid #1f1f1f;
-  }
-
-  .audio-info strong { color: #fff; }
-
-  .progress-bar {
-    height: 5px;
-    background: #1f1f1f;
-    border-radius: 3px;
-    overflow: hidden;
-    margin-top: 12px;
-    display: none;
-  }
-
-  .progress-bar.show { display: block; }
-
-  .progress-bar .fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #e94560, #f39c12);
-    transition: width 0.3s;
-  }
-
-  .success-box {
-    background: rgba(29, 209, 161, 0.1);
-    border: 1px solid rgba(29, 209, 161, 0.4);
-    border-radius: 10px;
-    padding: 14px;
-    font-size: 0.82rem;
-    color: #1dd1a1;
-    margin-top: 12px;
-    display: none;
-    line-height: 1.8;
-  }
-
-  .success-box.show { display: block; }
-  .success-box strong { color: #fff; }
-
-  .success-box.error {
-    background: rgba(233, 69, 96, 0.1);
-    border-color: rgba(233, 69, 96, 0.4);
-    color: #e94560;
-  }
-
-  .manual-download {
-    margin-top: 12px;
-    padding: 12px;
-    background: rgba(243, 156, 18, 0.1);
-    border: 1px dashed rgba(243, 156, 18, 0.5);
-    border-radius: 10px;
-    font-size: 0.82rem;
-    color: #f39c12;
-    display: none;
-    line-height: 1.8;
-    text-align: center;
-  }
-
-  .manual-download.show { display: block; }
-
-  .manual-download a {
-    color: #fff;
-    font-weight: 700;
-    background: linear-gradient(135deg, #f39c12, #e94560);
-    padding: 10px 20px;
-    border-radius: 8px;
-    text-decoration: none;
-    display: inline-block;
-    margin-top: 10px;
-  }
-
-  /* صفحه ۵: پلیر حرفه‌ای */
-  #playerScreen {
-    position: fixed;
-    inset: 0;
-    background: linear-gradient(180deg, #1a1a2e 0%, #0a0a0a 60%, #0a0a0a 100%);
-    z-index: 300;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .player-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 16px;
-    flex-shrink: 0;
-    z-index: 10;
-  }
-
-  .player-header .back-btn { color: #fff; font-size: 24px; }
-
-  .player-header .title {
-    color: #888;
-    font-size: 0.75rem;
-    text-align: center;
-    letter-spacing: 2px;
-    flex: 1;
-  }
-
-  .player-header .menu-btn {
-    background: transparent;
-    border: none;
-    color: #fff;
-    font-size: 20px;
-    cursor: pointer;
-    padding: 6px 12px;
-    border-radius: 8px;
-    transition: 0.2s;
-  }
-
-  .player-header .menu-btn:active { background: #1a1a1a; }
-
-  .player-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 10px 20px 30px;
-    gap: 20px;
-    overflow-y: auto;
-    padding-bottom: 40px;
-  }
-
-  .player-body::-webkit-scrollbar { width: 0; }
-
-  .player-cover {
-    width: 72%;
-    max-width: 300px;
-    aspect-ratio: 1/1;
-    border-radius: 20px;
-    background: linear-gradient(135deg, #1a1a2e, #e94560);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    box-shadow: 0 20px 60px rgba(233, 69, 96, 0.35);
-    position: relative;
-    margin-top: 4px;
-  }
-
-  .player-cover img { width: 100%; height: 100%; object-fit: cover; }
-  .player-cover .placeholder { font-size: 6rem; opacity: 0.4; }
-
-  .player-info {
-    text-align: center;
-    width: 100%;
-    padding: 0 10px;
-  }
-
-  .player-title {
-    color: #fff;
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin-bottom: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .player-artist {
-    color: #888;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .progress-container {
-    width: 100%;
-    max-width: 400px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 4px;
-    direction: ltr;
-  }
-
-  .progress-container .time {
-    color: #888;
-    font-size: 0.72rem;
-    min-width: 40px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .progress-bar-player {
-    flex: 1;
-    height: 5px;
-    background: #2a2a2a;
-    border-radius: 3px;
-    position: relative;
-    cursor: pointer;
-  }
-
-  .progress-bar-player .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #e94560, #f39c12);
-    border-radius: 3px;
-    width: 0%;
-    transition: width 0.1s linear;
-  }
-
-  .controls {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    width: 100%;
-    max-width: 400px;
-    margin-top: 6px;
-  }
-
-  .ctrl-btn {
-    background: transparent;
-    border: none;
-    color: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 8px;
-    border-radius: 50%;
-    transition: 0.2s;
-  }
-
-  .ctrl-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.05); }
-
-  .ctrl-btn svg {
-    width: 26px;
-    height: 26px;
-    fill: #fff;
-  }
-
-  .ctrl-btn.play-btn {
-    width: 68px;
-    height: 68px;
-    background: linear-gradient(135deg, #e94560, #f39c12);
-    box-shadow: 0 8px 24px rgba(233, 69, 96, 0.5);
-  }
-
-  .ctrl-btn.play-btn:active { transform: scale(0.95); }
-
-  .ctrl-btn.play-btn svg {
-    width: 30px;
-    height: 30px;
-  }
-
-  .ctrl-btn.small svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  .ctrl-btn.active { color: #e94560; }
-  .ctrl-btn.active svg { fill: #e94560; }
-
-  .player-actions {
-    display: flex;
-    gap: 10px;
-    width: 100%;
-    max-width: 400px;
-    padding: 0 10px;
-    margin-top: 8px;
-    margin-bottom: 20px;
-  }
-
-  .player-actions .btn {
-    flex: 1;
-    padding: 11px;
-    font-size: 0.82rem;
-  }
-
-  .player-menu {
-    position: absolute;
-    top: 60px;
-    left: 16px;
-    background: #1c1c1c;
-    border: 1px solid #2a2a2a;
-    border-radius: 12px;
-    padding: 8px 0;
-    min-width: 220px;
-    z-index: 20;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    display: none;
-  }
-
-  .player-menu.show { display: block; }
-
-  .player-menu .menu-item {
-    padding: 12px 18px;
-    color: #fff;
-    font-size: 0.88rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: 0.2s;
-  }
-
-  .player-menu .menu-item:hover { background: #252525; }
-  .player-menu .menu-item.active { color: #e94560; }
-
-  .delete-confirm {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.8);
-    z-index: 400;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-
-  .delete-confirm .box {
-    background: #151515;
-    border-radius: 16px;
-    padding: 24px;
-    max-width: 340px;
-    width: 100%;
-    border: 1px solid #2a2a2a;
-    text-align: center;
-  }
-
-  .delete-confirm .box p {
-    color: #fff;
-    font-size: 0.95rem;
-    margin-bottom: 20px;
-    line-height: 1.7;
-  }
-
-  .delete-confirm .box .actions { display: flex; gap: 10px; }
-
-  .delete-confirm .box .actions button {
-    flex: 1;
-    padding: 12px;
-    border-radius: 10px;
-    border: none;
-    font-size: 0.9rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .delete-confirm .box .btn-cancel { background: #1c1c1c; color: #fff; }
-  .delete-confirm .box .btn-confirm { background: #e94560; color: #fff; }
-
-  @media (max-width: 400px) {
-    .player-cover { width: 82%; }
-    .player-title { font-size: 1.1rem; }
-    .controls { gap: 10px; }
-  }
 </style>
 </head>
 <body>
 
-<!-- لودینگ اولیه -->
-<div id="initialLoading">
-  <div class="loader-text" id="loaderText">
-    در حال بارگذاری
-    <span class="dots">
-      <span>.</span><span>.</span><span>.</span>
-    </span>
-  </div>
-  <div class="error-box hidden" id="errorBox">
-    <div>⚠️ خطا در بارگذاری</div>
-    <div style="font-size:0.8rem;color:#888;margin-top:8px;">دوباره تلاش کن</div>
-    <button onclick="location.reload()">🔄 تلاش مجدد</button>
-  </div>
+<div id="hud">
+  <div id="health-bar"><div id="health-fill"></div></div>
+  <div id="score">امتیاز: <span id="score-val">0</span></div>
+  <div id="enemies">دشمنان: <span id="enemy-val">0</span></div>
 </div>
 
-<!-- اسپلش -->
-<div id="splashScreen" class="hidden">
-  <div class="splash-content">
-    <div class="splash-image-wrapper">
-      <img id="splashImg" src="" alt="لوگو" class="splash-image" onerror="this.style.display='none'">
-    </div>
-    <div class="splash-version">v1.0.0</div>
-    <div class="splash-title">موسیقی من</div>
-  </div>
-  <div class="splash-progress-bottom">
-    <div class="progress-bar">
-      <div class="progress-fill" id="progressFill"></div>
-    </div>
-    <div class="progress-text" id="progressPercent">0%</div>
-  </div>
+<div id="joystick-zone"><div id="joystick-base"><div id="joystick-stick"></div></div></div>
+<button id="punch-btn">👊</button>
+
+<div id="loading"><div class="spinner"></div>در حال بارگذاری R07_rigged.glb ...</div>
+
+<div id="game-over" class="hidden">
+  <h1>بازی تمام شد!</h1>
+  <p>امتیاز نهایی: <span id="final-score">0</span></p>
+  <button id="restart-btn">شروع مجدد</button>
 </div>
 
-<!-- صفحه اصلی -->
-<div id="homeScreen" class="hidden">
-  <div class="top-bar">
-    <img src="" id="topLogo" alt="لوگو" class="top-logo" onerror="this.style.opacity='0'">
-    <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="searchInput" placeholder="جستجوی آهنگ یا خواننده...">
-    </div>
-  </div>
-
-  <div class="songs-area" id="songsArea">
-    <div class="empty-state" id="emptyState">
-      <div class="icon">🎧</div>
-      <p>هنوز آهنگی اضافه نشده</p>
-      <span>روی دکمه + پایین بزن</span>
-    </div>
-    <div class="songs-grid" id="songsGrid"></div>
-  </div>
-
-  <button class="fab-add" id="fabAdd">+</button>
-  <input type="file" id="quickFileInput" accept="audio/*" multiple class="hidden">
-</div>
-
-<!-- صفحه آپلود -->
-<div id="uploadScreen" class="hidden">
-  <div class="upload-header">
-    <button class="back-btn" id="backFromUpload">‹</button>
-    <h2>افزودن آهنگ جدید</h2>
-  </div>
-
-  <div class="upload-body">
-    <div class="step-card">
-      <div class="step-title">
-        <span class="step-num">1</span>
-        انتخاب فایل صوتی
-      </div>
-      <button class="btn btn-primary" id="btnPickAudio">
-        📁 انتخاب آهنگ از گوشی
-      </button>
-      <input type="file" id="fileInput" accept="audio/*" class="hidden">
-      <div class="audio-info hidden" id="audioInfoBox"></div>
-    </div>
-
-    <div class="step-card hidden" id="editCard">
-      <div class="step-title">
-        <span class="step-num">2</span>
-        ویرایش اطلاعات
-      </div>
-
-      <div class="field">
-        <label>🖼 کاور آهنگ</label>
-      </div>
-      <div class="cover-preview" id="coverPreview">
-        <div class="placeholder">🎵</div>
-      </div>
-      <button class="btn btn-secondary" id="btnPickCover">📷 انتخاب کاور</button>
-      <button class="btn btn-secondary hidden" id="btnRemoveCover" style="margin-top:8px;">❌ حذف کاور</button>
-      <input type="file" id="coverInput" accept="image/*" class="hidden">
-
-      <div class="field" style="margin-top:16px;">
-        <label>🎤 نام خواننده</label>
-        <input type="text" id="inpArtist" placeholder="مثلاً: محسن یگانه">
-      </div>
-
-      <div class="field">
-        <label>🎵 نام آهنگ</label>
-        <input type="text" id="inpTitle" placeholder="مثلاً: بهت قول میدم">
-      </div>
-
-      <div class="field">
-        <label>💿 نام آلبوم (اختیاری)</label>
-        <input type="text" id="inpAlbum" placeholder="نام آلبوم">
-      </div>
-
-      <div class="field">
-        <label>🎧 پیش‌نمایش</label>
-        <audio id="audioPreview" controls style="width:100%;margin-top:6px;border-radius:8px;"></audio>
-      </div>
-    </div>
-
-    <div class="step-card hidden" id="saveCard">
-      <div class="step-title">
-        <span class="step-num">3</span>
-        ذخیره نهایی
-      </div>
-      <button class="btn btn-success" id="btnSave">
-        💾 ذخیره در Downloads
-      </button>
-      <div class="progress-bar" id="progressBar">
-        <div class="fill" id="progressFillUpload"></div>
-      </div>
-      <div class="success-box" id="successBox"></div>
-      <div class="manual-download" id="manualDownload">
-        🔗 اگه دانلود خودکار شروع نشد:
-        <br>
-        <a id="manualLink" download>⬇️ دانلود دستی</a>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- پلیر حرفه‌ای -->
-<div id="playerScreen" class="hidden">
-  <div class="player-header">
-    <button class="back-btn" id="backFromPlayer">‹</button>
-    <div class="title" id="playerHeaderTitle">در حال پخش</div>
-    <button class="menu-btn" id="menuBtn">⋮</button>
-  </div>
-
-  <div class="player-menu" id="playerMenu">
-    <div class="menu-item" id="menuRepeatOff" data-mode="off">
-      <span>🔁</span> تکرار خاموش
-    </div>
-    <div class="menu-item" id="menuRepeatOne" data-mode="one">
-      <span>🔂</span> تکرار یک آهنگ
-    </div>
-    <div class="menu-item" id="menuRepeatAll" data-mode="all">
-      <span>🔁</span> تکرار همه
-    </div>
-    <div class="menu-item" id="menuShuffle">
-      <span>🔀</span> پخش تصادفی
-    </div>
-  </div>
-
-  <div class="player-body">
-    <div class="player-cover" id="playerCover">
-      <div class="placeholder">🎵</div>
-    </div>
-
-    <div class="player-info">
-      <div class="player-title" id="playerTitle">-</div>
-      <div class="player-artist" id="playerArtist">-</div>
-    </div>
-
-    <div class="progress-container">
-      <div class="time" id="currentTime">0:00</div>
-      <div class="progress-bar-player" id="progressBarPlayer">
-        <div class="progress-fill" id="progressFillPlayer"></div>
-      </div>
-      <div class="time" id="durationTime">0:00</div>
-    </div>
-
-    <div class="controls">
-      <button class="ctrl-btn small" id="btnShuffle" title="تصادفی">
-        <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
-      </button>
-
-      <button class="ctrl-btn" id="btnPrev" title="قبلی">
-        <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-      </button>
-
-      <button class="ctrl-btn play-btn" id="btnPlayPause" title="پخش">
-        <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-        <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-      </button>
-
-      <button class="ctrl-btn" id="btnNext" title="بعدی">
-        <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-      </button>
-
-      <button class="ctrl-btn small" id="btnRepeat" title="تکرار">
-        <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
-      </button>
-    </div>
-
-    <div class="player-actions">
-      <button class="btn btn-secondary" id="btnEditSong">✏️ ویرایش</button>
-      <button class="btn btn-secondary" id="btnDeleteSong" style="background:#3a1a1a;border-color:#5a2020;color:#ff6b6b;">🗑 حذف</button>
-    </div>
-  </div>
-</div>
-
-<!-- مودال حذف -->
-<div id="deleteConfirm" class="delete-confirm hidden">
-  <div class="box">
-    <p>آیا از حذف این آهنگ مطمئن هستی؟</p>
-    <div class="actions">
-      <button class="btn-cancel" id="btnCancelDelete">انصراف</button>
-      <button class="btn-confirm" id="btnConfirmDelete">حذف</button>
-    </div>
-  </div>
-</div>
-
-<script>
-/* ============================================================
-   ⚠️ مهم: اینجا Base64 لوگو رو بذار
-   جایگزین کن با رشته‌ای که از ابزار Base64 گرفتی
-   ============================================================ */
-const LOGO_BASE64 = ''; // ← اینجا Base64 رو بذار (شروع با data:image/png;base64,)
-
-/* ============================================================
-   ثابت‌ها
-   ============================================================ */
-const DB_NAME = 'MusicAppDB';
-const DB_STORE = 'songs';
-const LOGO_KEY = 'music_app_logo';
-
-let db = null;
-let currentSongId = null;
-let selectedAudioFile = null;
-let selectedCoverFile = null;
-
-/* state پلیر */
-let playlist = [];
-let currentIndex = -1;
-let repeatMode = 'off'; // off | one | all
-let shuffleMode = false;
-
-/* ============================================================
-   JavaScript Bridge برای Appilix
-   ============================================================ */
-/**
- * بررسی می‌کند که آیا در محیط اپلیکیشن Native (Appilix) هستیم یا خیر
- */
-function isNativeApp() {
-  return typeof window.Appilix !== 'undefined' &&
-         typeof window.Appilix.saveFile === 'function';
-}
-
-/**
- * ذخیره فایل از طریق JavaScript Bridge
- * @param {string} base64Data - داده فایل به صورت Base64 (بدون پیشوند data:)
- * @param {string} fileName - نام فایل برای ذخیره
- * @param {string} mimeType - نوع فایل (مثلاً audio/mpeg)
- * @returns {Promise<boolean>}
- */
-function saveFileNative(base64Data, fileName, mimeType) {
-  return new Promise((resolve) => {
-    try {
-      // حذف پیشوند data:...;base64, اگر وجود داشت
-      const cleanBase64 = base64Data.includes(',')
-        ? base64Data.split(',')[1]
-        : base64Data;
-
-      // فراخوانی تابع Native
-      window.Appilix.saveFile(cleanBase64, fileName, mimeType);
-
-      // فرض می‌کنیم موفق بوده (چون Native پاسخ برنمی‌گرداند)
-      resolve(true);
-    } catch (err) {
-      console.error('خطا در ذخیره Native:', err);
-      resolve(false);
-    }
-  });
-}
-
-/**
- * ذخیره فایل در محیط مرورگر (Fallback)
- */
-function saveFileBrowser(dataUrl, fileName) {
-  const a = document.createElement('a');
-  a.href = dataUrl;
-  a.download = fileName;
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-/* ============================================================
-   IndexedDB
-   ============================================================ */
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = e => {
-      const d = e.target.result;
-      if (!d.objectStoreNames.contains(DB_STORE)) {
-        d.createObjectStore(DB_STORE, { keyPath: 'id' });
-      }
-    };
-    req.onsuccess = e => { db = e.target.result; resolve(db); };
-    req.onerror = e => reject(e.target.error);
-  });
-}
-
-function idbPut(song) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, 'readwrite');
-    tx.objectStore(DB_STORE).put(song);
-    tx.oncomplete = () => resolve();
-    tx.onerror = e => reject(e.target.error);
-  });
-}
-
-function idbGetAll() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, 'readonly');
-    const req = tx.objectStore(DB_STORE).getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = e => reject(e.target.error);
-  });
-}
-
-function idbGet(id) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, 'readonly');
-    const req = tx.objectStore(DB_STORE).get(id);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = e => reject(e.target.error);
-  });
-}
-
-function idbDelete(id) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, 'readwrite');
-    tx.objectStore(DB_STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = e => reject(e.target.error);
-  });
-}
-
-/* ============================================================
-   لودینگ اولیه
-   ============================================================ */
-function getLogo() {
-  const saved = localStorage.getItem(LOGO_KEY);
-  if (saved) return saved;
-  if (LOGO_BASE64) {
-    localStorage.setItem(LOGO_KEY, LOGO_BASE64);
-    return LOGO_BASE64;
-  }
-  return '';
-}
-
-async function initialLoad() {
-  let logo = getLogo();
-
-  if (!logo) {
-    try {
-      const res = await fetch('https://i.supaimg.com/bc5adc11-7f47-4fe4-9ef2-138ec4d3868a/bcc33d7c-2aec-464e-bfe6-4faa54ed1218.png', { cache: 'force-cache' });
-      if (res.ok) {
-        const blob = await res.blob();
-        logo = await blobToDataURL(blob);
-        localStorage.setItem(LOGO_KEY, logo);
-      }
-    } catch(e) {
-      console.warn('نتونست لوگو رو دانلود کنه:', e);
-    }
-  }
-
-  document.getElementById('initialLoading').classList.add('hidden');
-  showSplash();
-}
-
-function blobToDataURL(blob) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(blob);
-  });
-}
-
-/* ============================================================
-   اسپلش
-   ============================================================ */
-function showSplash() {
-  const splash = document.getElementById('splashScreen');
-  const splashImg = document.getElementById('splashImg');
-  const logo = getLogo();
-  if (logo) {
-    splashImg.src = logo;
-  } else {
-    splashImg.style.display = 'none';
-  }
-
-  splash.classList.remove('hidden');
-
-  const progressFill = document.getElementById('progressFill');
-  const progressPercent = document.getElementById('progressPercent');
-  let progress = 0;
-  const totalSteps = 30;
-
-  function updateProgress() {
-    progress++;
-    if (progress > totalSteps) progress = totalSteps;
-    const percent = Math.round((progress / totalSteps) * 100);
-    progressFill.style.width = percent + '%';
-    progressPercent.textContent = percent + '%';
-
-    if (progress < totalSteps) {
-      setTimeout(updateProgress, 60);
-    } else {
-      setTimeout(() => {
-        splash.classList.add('hidden');
-        showHome();
-      }, 300);
-    }
-  }
-  setTimeout(updateProgress, 100);
-}
-
-/* ============================================================
-   صفحه اصلی
-   ============================================================ */
-async function showHome() {
-  const home = document.getElementById('homeScreen');
-  const topLogo = document.getElementById('topLogo');
-  const logo = getLogo();
-  if (logo) {
-    topLogo.src = logo;
-  } else {
-    topLogo.style.display = 'none';
-  }
-  home.classList.remove('hidden');
-  await renderSongs();
-}
-
-async function renderSongs(filter = '') {
-  const songs = await idbGetAll();
-  songs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-  playlist = songs;
-
-  const filtered = filter
-    ? songs.filter(s =>
-        (s.title || '').toLowerCase().includes(filter.toLowerCase()) ||
-        (s.artist || '').toLowerCase().includes(filter.toLowerCase()))
-    : songs;
-
-  const grid = document.getElementById('songsGrid');
-  const emptyState = document.getElementById('emptyState');
-
-  if (filtered.length === 0) {
-    grid.innerHTML = '';
-    if (filter) {
-      emptyState.innerHTML = `
-        <div class="icon">🔍</div>
-        <p>نتیجه‌ای یافت نشد</p>
-        <span>عبارت دیگری امتحان کن</span>
-      `;
-    } else {
-      emptyState.innerHTML = `
-        <div class="icon">🎧</div>
-        <p>هنوز آهنگی اضافه نشده</p>
-        <span>روی دکمه + پایین بزن</span>
-      `;
-    }
-    emptyState.classList.remove('hidden');
-    return;
-  }
-
-  emptyState.classList.add('hidden');
-  grid.innerHTML = '';
-
-  for (const song of filtered) {
-    const card = document.createElement('div');
-    card.className = 'song-card';
-    card.dataset.id = song.id;
-
-    const coverHtml = song.cover
-      ? `<img src="${song.cover}" alt="">`
-      : `<div class="cover-placeholder">🎵</div>`;
-
-    card.innerHTML = `
-      <div class="song-cover">
-        ${coverHtml}
-        <div class="play-overlay">▶</div>
-      </div>
-      <div class="song-card-info">
-        <div class="song-card-title">${escapeHtml(song.title || 'بدون نام')}</div>
-        <div class="song-card-artist">${escapeHtml(song.artist || 'ناشناس')}</div>
-      </div>
-    `;
-
-    card.addEventListener('click', () => openPlayer(song.id));
-    grid.appendChild(card);
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
   }
 }
-
-function escapeHtml(s) {
-  return (s || '').replace(/[&<>"']/g, m => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[m]));
-}
-
-document.getElementById('searchInput').addEventListener('input', (e) => {
-  renderSongs(e.target.value);
-});
-
-/* ============================================================
-   دکمه + : مستقیم برو تو انتخاب فایل
-   ============================================================ */
-document.getElementById('fabAdd').addEventListener('click', () => {
-  document.getElementById('quickFileInput').click();
-});
-
-document.getElementById('quickFileInput').addEventListener('change', async (e) => {
-  const files = Array.from(e.target.files);
-  if (files.length === 0) return;
-
-  if (files.length === 1) {
-    const file = files[0];
-    resetUploadForm();
-    selectedAudioFile = file;
-
-    const info = document.getElementById('audioInfoBox');
-    info.classList.remove('hidden');
-    info.innerHTML = `
-      <strong>📄 نام فایل:</strong> ${escapeHtml(file.name)}<br>
-      <strong>📦 حجم:</strong> ${(file.size / 1024 / 1024).toFixed(2)} MB
-    `;
-
-    const nameWithoutExt = file.name.replace(/\.[^.]+$/, '');
-    let title = nameWithoutExt;
-    let artist = '';
-    if (nameWithoutExt.includes(' - ')) {
-      const parts = nameWithoutExt.split(' - ');
-      artist = parts[0].trim();
-      title = parts.slice(1).join(' - ').trim();
-    }
-    document.getElementById('inpArtist').value = artist;
-    document.getElementById('inpTitle').value = title;
-    document.getElementById('audioPreview').src = URL.createObjectURL(file);
-
-    document.getElementById('editCard').classList.remove('hidden');
-    document.getElementById('saveCard').classList.remove('hidden');
-
-    tryReadExistingCover(file);
-
-    document.getElementById('homeScreen').classList.add('hidden');
-    document.getElementById('uploadScreen').classList.remove('hidden');
-  } else {
-    let added = 0;
-    for (const file of files) {
-      try {
-        const dataUrl = await fileToDataURL(file);
-        const nameWithoutExt = file.name.replace(/\.[^.]+$/, '');
-        let title = nameWithoutExt;
-        let artist = 'ناشناس';
-        if (nameWithoutExt.includes(' - ')) {
-          const parts = nameWithoutExt.split(' - ');
-          artist = parts[0].trim();
-          title = parts.slice(1).join(' - ').trim();
-        }
-        const song = {
-          id: 'song_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9),
-          title, artist,
-          cover: '',
-          audioData: dataUrl,
-          audioName: file.name,
-          createdAt: Date.now() + added
-        };
-        await idbPut(song);
-        added++;
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    e.target.value = '';
-    if (added > 0) {
-      renderSongs();
-      alert(`✅ ${added} آهنگ اضافه شد`);
-    }
-  }
-});
-
-/* ============================================================
-   آپلود از داخل صفحه
-   ============================================================ */
-document.getElementById('backFromUpload').addEventListener('click', () => {
-  document.getElementById('uploadScreen').classList.add('hidden');
-  document.getElementById('homeScreen').classList.remove('hidden');
-  renderSongs();
-});
-
-document.getElementById('btnPickAudio').addEventListener('click', () => {
-  document.getElementById('fileInput').click();
-});
-
-document.getElementById('fileInput').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  selectedAudioFile = file;
-
-  const info = document.getElementById('audioInfoBox');
-  info.classList.remove('hidden');
-  info.innerHTML = `
-    <strong>📄 نام فایل:</strong> ${escapeHtml(file.name)}<br>
-    <strong>📦 حجم:</strong> ${(file.size / 1024 / 1024).toFixed(2)} MB
-  `;
-
-  const nameWithoutExt = file.name.replace(/\.[^.]+$/, '');
-  let title = nameWithoutExt;
-  let artist = '';
-
-  if (nameWithoutExt.includes(' - ')) {
-    const parts = nameWithoutExt.split(' - ');
-    artist = parts[0].trim();
-    title = parts.slice(1).join(' - ').trim();
-  }
-
-  document.getElementById('inpArtist').value = artist;
-  document.getElementById('inpTitle').value = title;
-
-  const url = URL.createObjectURL(file);
-  document.getElementById('audioPreview').src = url;
-
-  document.getElementById('editCard').classList.remove('hidden');
-  document.getElementById('saveCard').classList.remove('hidden');
-  document.getElementById('successBox').classList.remove('show', 'error');
-  document.getElementById('manualDownload').classList.remove('show');
-
-  tryReadExistingCover(file);
-});
-
-function resetUploadForm() {
-  selectedAudioFile = null;
-  selectedCoverFile = null;
-  currentSongId = null;
-  document.getElementById('audioInfoBox').classList.add('hidden');
-  document.getElementById('editCard').classList.add('hidden');
-  document.getElementById('saveCard').classList.add('hidden');
-  document.getElementById('coverPreview').innerHTML = '<div class="placeholder">🎵</div>';
-  document.getElementById('btnRemoveCover').classList.add('hidden');
-  document.getElementById('inpArtist').value = '';
-  document.getElementById('inpTitle').value = '';
-  document.getElementById('inpAlbum').value = '';
-  document.getElementById('audioPreview').src = '';
-  document.getElementById('successBox').classList.remove('show', 'error');
-  document.getElementById('manualDownload').classList.remove('show');
-  document.getElementById('progressBar').classList.remove('show');
-  document.getElementById('fileInput').value = '';
-  document.getElementById('coverInput').value = '';
-}
-
-/* ---------- خواندن کاور موجود ---------- */
-async function tryReadExistingCover(file) {
-  try {
-    const buffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    const apicIndex = findSequence(bytes, [0x41, 0x50, 0x49, 0x43]);
-    if (apicIndex === -1) return;
-
-    const jpgStart = findSequence(bytes, [0xFF, 0xD8, 0xFF], apicIndex);
-    const pngStart = findSequence(bytes, [0x89, 0x50, 0x4E, 0x47], apicIndex);
-
-    let start = -1, end = -1, mime = '';
-    if (jpgStart > -1 && (pngStart === -1 || jpgStart < pngStart)) {
-      start = jpgStart;
-      end = findSequence(bytes, [0xFF, 0xD9], start);
-      mime = 'image/jpeg';
-      if (end > -1) end += 2;
-    } else if (pngStart > -1) {
-      start = pngStart;
-      end = findSequence(bytes, [0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82], start);
-      mime = 'image/png';
-      if (end > -1) end += 8;
-    }
-
-    if (start > -1 && end > start) {
-      const coverBytes = bytes.slice(start, end);
-      const blob = new Blob([coverBytes], { type: mime });
-      selectedCoverFile = new File([blob], 'cover.' + (mime === 'image/png' ? 'png' : 'jpg'), { type: mime });
-
-      const reader = new FileReader();
-      reader.onload = (e) => showCover(e.target.result);
-      reader.readAsDataURL(blob);
-    }
-  } catch (err) {
-    console.warn('خواندن کاور ناموفق:', err);
-  }
-}
-
-function findSequence(bytes, seq, startFrom = 0) {
-  outer:
-  for (let i = startFrom; i <= bytes.length - seq.length; i++) {
-    for (let j = 0; j < seq.length; j++) {
-      if (bytes[i + j] !== seq[j]) continue outer;
-    }
-    return i;
-  }
-  return -1;
-}
-
-document.getElementById('btnPickCover').addEventListener('click', () => {
-  document.getElementById('coverInput').click();
-});
-
-document.getElementById('coverInput').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  selectedCoverFile = file;
-  const reader = new FileReader();
-  reader.onload = (ev) => showCover(ev.target.result);
-  reader.readAsDataURL(file);
-});
-
-document.getElementById('btnRemoveCover').addEventListener('click', () => {
-  selectedCoverFile = null;
-  document.getElementById('coverPreview').innerHTML = '<div class="placeholder">🎵</div>';
-  document.getElementById('btnRemoveCover').classList.add('hidden');
-  document.getElementById('coverInput').value = '';
-});
-
-function showCover(dataUrl) {
-  document.getElementById('coverPreview').innerHTML = `<img src="${dataUrl}" alt="">`;
-  document.getElementById('btnRemoveCover').classList.remove('hidden');
-}
-
-/* ============================================================
-   ذخیره نهایی (با پشتیبانی از Native Bridge)
-   ============================================================ */
-document.getElementById('btnSave').addEventListener('click', async () => {
-  if (!selectedAudioFile) {
-    alert('اول یه فایل صوتی انتخاب کن');
-    return;
-  }
-
-  const artist = document.getElementById('inpArtist').value.trim();
-  const title = document.getElementById('inpTitle').value.trim();
-  const album = document.getElementById('inpAlbum').value.trim();
-
-  if (!title && !artist) {
-    alert('حداقل نام آهنگ یا خواننده رو وارد کن');
-    return;
-  }
-
-  const btnSave = document.getElementById('btnSave');
-  const progressBar = document.getElementById('progressBar');
-  const progressFill = document.getElementById('progressFillUpload');
-  const successBox = document.getElementById('successBox');
-  const manualDownload = document.getElementById('manualDownload');
-
-  btnSave.disabled = true;
-  btnSave.textContent = '⏳ در حال پردازش...';
-  progressBar.classList.add('show');
-  progressFill.style.width = '10%';
-  successBox.classList.remove('show', 'error');
-  manualDownload.classList.remove('show');
-
-  try {
-    progressFill.style.width = '30%';
-    const audioBuffer = await selectedAudioFile.arrayBuffer();
-    progressFill.style.width = '50%';
-
-    const writer = new ID3Writer(audioBuffer);
-    writer.setFrame('TIT2', title || 'بدون نام')
-          .setFrame('TPE1', [artist || 'ناشناس']);
-    if (album) writer.setFrame('TALB', album);
-
-    if (selectedCoverFile) {
-      const coverBuffer = await selectedCoverFile.arrayBuffer();
-      writer.setFrame('APIC', { type: 3, data: coverBuffer, description: 'Cover' });
-    }
-
-    writer.addTag();
-    progressFill.style.width = '70%';
-
-    const taggedBlob = writer.getBlob();
-    const ext = (selectedAudioFile.name.split('.').pop() || 'mp3').toLowerCase();
-    const cleanName = (artist && title) ? `${artist} - ${title}` : (title || artist || 'audio');
-    const finalName = `${cleanName}.${ext}`;
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const dataUrl = reader.result;
-
-        let coverDataUrl = '';
-        if (selectedCoverFile) coverDataUrl = await fileToDataURL(selectedCoverFile);
-        else {
-          const existing = document.getElementById('coverPreview').querySelector('img');
-          if (existing) coverDataUrl = existing.src;
-        }
-
-        let createdAt = Date.now();
-        if (currentSongId) {
-          const old = await idbGet(currentSongId);
-          if (old && old.createdAt) createdAt = old.createdAt;
-        }
-
-        const songData = {
-          id: currentSongId || 'song_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9),
-          title: title || 'بدون نام',
-          artist: artist || 'ناشناس',
-          album: album || '',
-          cover: coverDataUrl,
-          audioData: dataUrl,
-          audioName: selectedAudioFile.name,
-          createdAt: createdAt
-        };
-
-        await idbPut(songData);
-        currentSongId = null;
-        progressFill.style.width = '90%';
-
-        // ============================================================
-        // 🔥 بخش کلیدی: ذخیره فایل با پشتیبانی از Native Bridge
-        // ============================================================
-        const mimeType = taggedBlob.type || 'audio/mpeg';
-        let saveSuccess = false;
-
-        if (isNativeApp()) {
-          // محیط اپلیکیشن Native (Appilix)
-          saveSuccess = await saveFileNative(dataUrl, finalName, mimeType);
-        }
-
-        if (!saveSuccess) {
-          // محیط مرورگر یا عدم موفقیت Native: Fallback
-          saveFileBrowser(dataUrl, finalName);
-
-          // نمایش لینک دانلود دستی به عنوان پشتیبان
-          const manualLink = document.getElementById('manualLink');
-          manualLink.href = dataUrl;
-          manualLink.download = finalName;
-          manualDownload.classList.add('show');
-        }
-
-        progressFill.style.width = '100%';
-
-        if (saveSuccess) {
-          successBox.innerHTML = `✅ آهنگ با موفقیت در Downloads ذخیره شد:<br>
-            <strong>${escapeHtml(finalName)}</strong><br><br>
-            🎵 تو صفحه اصلی هم نمایش داده میشه.`;
-        } else {
-          successBox.innerHTML = `✅ آهنگ با موفقیت اضافه شد:<br>
-            <strong>${escapeHtml(finalName)}</strong><br><br>
-            🎵 تو صفحه اصلی نمایش داده میشه.`;
-        }
-        successBox.classList.add('show');
-
-        setTimeout(() => {
-          progressBar.classList.remove('show');
-          progressFill.style.width = '0%';
-          setTimeout(() => {
-            document.getElementById('uploadScreen').classList.add('hidden');
-            document.getElementById('homeScreen').classList.remove('hidden');
-            renderSongs();
-          }, 1000);
-        }, 1500);
-
-      } catch (err) {
-        console.error(err);
-        showError('❌ خطا: ' + err.message);
-      } finally {
-        btnSave.disabled = false;
-        btnSave.textContent = '💾 ذخیره در Downloads';
-      }
-    };
-
-    reader.onerror = () => {
-      showError('❌ خطا در پردازش فایل');
-      btnSave.disabled = false;
-      btnSave.textContent = '💾 ذخیره در Downloads';
-      progressBar.classList.remove('show');
-    };
-
-    reader.readAsDataURL(taggedBlob);
-
-  } catch (err) {
-    console.error(err);
-    showError('❌ خطا: ' + err.message);
-    btnSave.disabled = false;
-    btnSave.textContent = '💾 ذخیره در Downloads';
-    progressBar.classList.remove('show');
-  }
-});
-
-function fileToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
-function showError(msg) {
-  const box = document.getElementById('successBox');
-  box.classList.add('error', 'show');
-  box.innerHTML = msg;
-}
-
-/* ============================================================
-   پلیر حرفه‌ای
-   ============================================================ */
-const playerAudio = new Audio();
-
-async function openPlayer(songId) {
-  const songs = await idbGetAll();
-  songs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  playlist = songs;
-
-  currentIndex = playlist.findIndex(s => s.id === songId);
-  if (currentIndex === -1) currentIndex = 0;
-
-  await loadTrack(currentIndex, true);
-
-  document.getElementById('homeScreen').classList.add('hidden');
-  document.getElementById('playerScreen').classList.remove('hidden');
-}
-
-async function loadTrack(index, autoPlay = false) {
-  if (index < 0 || index >= playlist.length) return;
-  currentIndex = index;
-
-  const song = playlist[index];
-  if (!song) return;
-
-  currentSongId = song.id;
-
-  document.getElementById('playerTitle').textContent = song.title || 'بدون نام';
-  document.getElementById('playerArtist').textContent = song.artist || 'ناشناس';
-
-  const coverEl = document.getElementById('playerCover');
-  if (song.cover) {
-    coverEl.innerHTML = `<img src="${song.cover}" alt="">`;
-  } else {
-    coverEl.innerHTML = '<div class="placeholder">🎵</div>';
-  }
-
-  playerAudio.src = song.audioData || '';
-  playerAudio.load();
-
-  document.getElementById('progressFillPlayer').style.width = '0%';
-  document.getElementById('currentTime').textContent = '0:00';
-  document.getElementById('durationTime').textContent = '0:00';
-
-  updatePlayPauseIcon(false);
-
-  if (autoPlay) {
-    try {
-      await playerAudio.play();
-      updatePlayPauseIcon(true);
-    } catch(e) {
-      console.warn('پخش خودکار ناموفق:', e);
-    }
-  }
-}
-
-function updatePlayPauseIcon(isPlaying) {
-  document.getElementById('playIcon').style.display = isPlaying ? 'none' : 'block';
-  document.getElementById('pauseIcon').style.display = isPlaying ? 'block' : 'none';
-}
-
-document.getElementById('btnPlayPause').addEventListener('click', async () => {
-  if (playerAudio.paused) {
-    try {
-      await playerAudio.play();
-      updatePlayPauseIcon(true);
-    } catch(e) {
-      console.warn(e);
-    }
-  } else {
-    playerAudio.pause();
-    updatePlayPauseIcon(false);
-  }
-});
-
-document.getElementById('btnNext').addEventListener('click', () => {
-  playNext(true);
-});
-
-document.getElementById('btnPrev').addEventListener('click', () => {
-  playPrev();
-});
-
-document.getElementById('btnShuffle').addEventListener('click', () => {
-  shuffleMode = !shuffleMode;
-  document.getElementById('btnShuffle').classList.toggle('active', shuffleMode);
-  document.getElementById('menuShuffle').classList.toggle('active', shuffleMode);
-  showMiniToast(shuffleMode ? '🔀 پخش تصادفی روشن' : '🔀 پخش تصادفی خاموش');
-});
-
-document.getElementById('btnRepeat').addEventListener('click', () => {
-  cycleRepeat();
-});
-
-document.getElementById('menuRepeatOff').addEventListener('click', () => setRepeat('off'));
-document.getElementById('menuRepeatOne').addEventListener('click', () => setRepeat('one'));
-document.getElementById('menuRepeatAll').addEventListener('click', () => setRepeat('all'));
-document.getElementById('menuShuffle').addEventListener('click', () => {
-  shuffleMode = !shuffleMode;
-  updateShuffleUI();
-  showMiniToast(shuffleMode ? '🔀 پخش تصادفی روشن' : '🔀 پخش تصادفی خاموش');
-});
-
-function cycleRepeat() {
-  const order = ['off', 'all', 'one'];
-  const idx = order.indexOf(repeatMode);
-  repeatMode = order[(idx + 1) % 3];
-  updateRepeatUI();
-  const labels = { off: '🔁 تکرار خاموش', all: '🔁 تکرار همه', one: '🔂 تکرار یک آهنگ' };
-  showMiniToast(labels[repeatMode]);
-}
-
-function setRepeat(mode) {
-  repeatMode = mode;
-  updateRepeatUI();
-  document.getElementById('playerMenu').classList.remove('show');
-  const labels = { off: '🔁 تکرار خاموش', all: '🔁 تکرار همه', one: '🔂 تکرار یک آهنگ' };
-  showMiniToast(labels[mode]);
-}
-
-function updateRepeatUI() {
-  const btn = document.getElementById('btnRepeat');
-  btn.classList.toggle('active', repeatMode !== 'off');
-  document.getElementById('menuRepeatOff').classList.toggle('active', repeatMode === 'off');
-  document.getElementById('menuRepeatOne').classList.toggle('active', repeatMode === 'one');
-  document.getElementById('menuRepeatAll').classList.toggle('active', repeatMode === 'all');
-}
-
-function updateShuffleUI() {
-  document.getElementById('btnShuffle').classList.toggle('active', shuffleMode);
-  document.getElementById('menuShuffle').classList.toggle('active', shuffleMode);
-}
-
-function playNext(userClicked = false) {
-  if (playlist.length === 0) return;
-
-  if (repeatMode === 'one' && !userClicked) {
-    playerAudio.currentTime = 0;
-    playerAudio.play();
-    return;
-  }
-
-  if (shuffleMode && playlist.length > 1) {
-    let newIndex;
-    do {
-      newIndex = Math.floor(Math.random() * playlist.length);
-    } while (newIndex === currentIndex);
-    loadTrack(newIndex, true);
-    return;
-  }
-
-  let nextIndex = currentIndex + 1;
-  if (nextIndex >= playlist.length) {
-    if (repeatMode === 'all' || userClicked) {
-      nextIndex = 0;
-    } else {
-      updatePlayPauseIcon(false);
-      return;
-    }
-  }
-  loadTrack(nextIndex, true);
-}
-
-function playPrev() {
-  if (playlist.length === 0) return;
-
-  if (playerAudio.currentTime > 3) {
-    playerAudio.currentTime = 0;
-    return;
-  }
-
-  if (shuffleMode && playlist.length > 1) {
-    let newIndex;
-    do {
-      newIndex = Math.floor(Math.random() * playlist.length);
-    } while (newIndex === currentIndex);
-    loadTrack(newIndex, true);
-    return;
-  }
-
-  let prevIndex = currentIndex - 1;
-  if (prevIndex < 0) {
-    prevIndex = playlist.length - 1;
-  }
-  loadTrack(prevIndex, true);
-}
-
-playerAudio.addEventListener('timeupdate', () => {
-  if (!playerAudio.duration) return;
-  const percent = (playerAudio.currentTime / playerAudio.duration) * 100;
-  document.getElementById('progressFillPlayer').style.width = percent + '%';
-  document.getElementById('currentTime').textContent = formatTime(playerAudio.currentTime);
-});
-
-playerAudio.addEventListener('loadedmetadata', () => {
-  document.getElementById('durationTime').textContent = formatTime(playerAudio.duration);
-});
-
-playerAudio.addEventListener('play', () => updatePlayPauseIcon(true));
-playerAudio.addEventListener('pause', () => updatePlayPauseIcon(false));
-
-playerAudio.addEventListener('ended', () => {
-  playNext(false);
-});
-
-function formatTime(sec) {
-  if (!sec || isNaN(sec)) return '0:00';
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return m + ':' + (s < 10 ? '0' : '') + s;
-}
-
-const progressBarPlayer = document.getElementById('progressBarPlayer');
-progressBarPlayer.addEventListener('click', (e) => {
-  if (!playerAudio.duration) return;
-  const rect = progressBarPlayer.getBoundingClientRect();
-  const percent = (e.clientX - rect.left) / rect.width;
-  playerAudio.currentTime = percent * playerAudio.duration;
-});
-
-document.getElementById('menuBtn').addEventListener('click', () => {
-  document.getElementById('playerMenu').classList.toggle('show');
-});
-
-document.addEventListener('click', (e) => {
-  const menu = document.getElementById('playerMenu');
-  const btn = document.getElementById('menuBtn');
-  if (!menu.contains(e.target) && !btn.contains(e.target)) {
-    menu.classList.remove('show');
-  }
-});
-
-document.getElementById('backFromPlayer').addEventListener('click', () => {
-  playerAudio.pause();
-  document.getElementById('playerScreen').classList.add('hidden');
-  document.getElementById('homeScreen').classList.remove('hidden');
-  renderSongs();
-});
-
-document.getElementById('btnEditSong').addEventListener('click', async () => {
-  const song = await idbGet(currentSongId);
-  if (!song) return;
-
-  playerAudio.pause();
-
-  resetUploadForm();
-  currentSongId = song.id;
-
-  document.getElementById('playerScreen').classList.add('hidden');
-  document.getElementById('uploadScreen').classList.remove('hidden');
-
-  document.getElementById('inpTitle').value = song.title || '';
-  document.getElementById('inpArtist').value = song.artist || '';
-  document.getElementById('inpAlbum').value = song.album || '';
-  document.getElementById('audioPreview').src = song.audioData || '';
-
-  if (song.cover) {
-    document.getElementById('coverPreview').innerHTML = `<img src="${song.cover}" alt="">`;
-    document.getElementById('btnRemoveCover').classList.remove('hidden');
-  }
-
-  try {
-    const blob = await (await fetch(song.audioData)).blob();
-    selectedAudioFile = new File([blob], song.audioName || 'audio.mp3', { type: blob.type });
-  } catch(e) {
-    console.warn(e);
-  }
-
-  document.getElementById('audioInfoBox').classList.remove('hidden');
-  document.getElementById('audioInfoBox').innerHTML = `
-    <strong>📄 نام فایل:</strong> ${escapeHtml(song.audioName || 'audio.mp3')}<br>
-    <strong>✏️ حالت:</strong> ویرایش آهنگ موجود
-  `;
-
-  document.getElementById('editCard').classList.remove('hidden');
-  document.getElementById('saveCard').classList.remove('hidden');
-});
-
-document.getElementById('btnDeleteSong').addEventListener('click', () => {
-  document.getElementById('deleteConfirm').classList.remove('hidden');
-});
-
-document.getElementById('btnCancelDelete').addEventListener('click', () => {
-  document.getElementById('deleteConfirm').classList.add('hidden');
-});
-
-document.getElementById('btnConfirmDelete').addEventListener('click', async () => {
-  if (currentSongId) {
-    await idbDelete(currentSongId);
-    currentSongId = null;
-  }
-  document.getElementById('deleteConfirm').classList.add('hidden');
-  playerAudio.pause();
-  document.getElementById('playerScreen').classList.add('hidden');
-  document.getElementById('homeScreen').classList.remove('hidden');
-  renderSongs();
-});
-
-function showMiniToast(text) {
-  const t = document.createElement('div');
-  t.style.cssText = `
-    position:fixed;bottom:40px;left:50%;transform:translateX(-50%);
-    background:rgba(0,0,0,0.9);color:#fff;padding:10px 20px;
-    border-radius:20px;font-size:0.85rem;z-index:9999;
-    border:1px solid #333;transition:opacity 0.3s;
-  `;
-  t.textContent = text;
-  document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; }, 1500);
-  setTimeout(() => { t.remove(); }, 1800);
-}
-
-/* ============================================================
-   راه‌اندازی
-   ============================================================ */
-(async () => {
-  try {
-    await openDB();
-    await initialLoad();
-  } catch (err) {
-    console.error('خطا:', err);
-    document.getElementById('initialLoading').innerHTML = `
-      <div class="error-box">
-        <div>❌ خطا</div>
-        <div style="font-size:0.8rem;color:#888;margin-top:8px;">${err.message}</div>
-        <button onclick="location.reload()">🔄 تلاش مجدد</button>
-      </div>
-    `;
-  }
-})();
 </script>
 
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ============ صحنه ============
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x1a1a2e, 30, 80);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 200);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x444466, 0.8);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.position.set(15, 25, 15);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -40;
+sun.shadow.camera.right = 40;
+sun.shadow.camera.top = 40;
+sun.shadow.camera.bottom = -40;
+scene.add(sun);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshStandardMaterial({ color: 0x2a2a4a, roughness: 0.9 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const grid = new THREE.GridHelper(200, 100, 0x4444aa, 0x222255);
+grid.position.y = 0.01;
+scene.add(grid);
+
+// ============ متغیرها ============
+let player = null;
+let playerMixer = null;
+let actions = {};
+let currentAction = null;
+const enemies = [];
+
+const state = {
+  health: 100, maxHealth: 100, score: 0,
+  gameOver: false, punchCooldown: 0,
+  spawnTimer: 1, spawnInterval: 3, playing: false,
+};
+
+const clock = new THREE.Clock();
+const keys = { w:false, a:false, s:false, d:false };
+const joy = { x:0, y:0, active:false };
+
+// ============ بارگذاری کاراکتر (R بزرگ) ============
+const MODEL_URL = 'R07_rigged.glb';
+const loader = new GLTFLoader();
+loader.load(MODEL_URL, (gltf) => {
+  player = gltf.scene;
+  player.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  scene.add(player);
+
+  if (gltf.animations?.length) {
+    playerMixer = new THREE.AnimationMixer(player);
+    gltf.animations.forEach(clip => {
+      actions[clip.name.toLowerCase()] = playerMixer.clipAction(clip);
+    });
+    console.log('🎬 انیمیشن‌های موجود:', Object.keys(actions));
+    playAction('idle');
+  } else {
+    console.warn('⚠️ این مدل انیمیشن ندارد!');
+  }
+
+  camera.position.set(0, 5, 9);
+  document.getElementById('loading').classList.add('hidden');
+  state.playing = true;
+}, undefined, (err) => {
+  console.error('❌ خطا:', err);
+  document.getElementById('loading').innerHTML =
+    `<div style="color:#f66;text-align:center;padding:20px">
+      خطا در بارگذاری <b>R07_rigged.glb</b><br>
+      <small style="opacity:.7">مطمئن شو فایل کنار HTML هست و روی سرور اجرا می‌کنی</small>
+    </div>`;
+});
+
+// ============ انیمیشن ============
+function playAction(name, fade = 0.2) {
+  if (!playerMixer) return;
+  const key = Object.keys(actions).find(k => k.includes(name));
+  if (!key) return;
+  const next = actions[key];
+  if (currentAction === next) return;
+  next.reset().fadeIn(fade).play();
+  if (currentAction) currentAction.fadeOut(fade);
+  currentAction = next;
+}
+
+// ============ کیبورد ============
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (k==='w'||k==='arrowup') keys.w = true;
+  if (k==='s'||k==='arrowdown') keys.s = true;
+  if (k==='a'||k==='arrowleft') keys.a = true;
+  if (k==='d'||k==='arrowright') keys.d = true;
+  if (k===' ') { e.preventDefault(); doPunch(); }
+});
+addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if (k==='w'||k==='arrowup') keys.w = false;
+  if (k==='s'||k==='arrowdown') keys.s = false;
+  if (k==='a'||k==='arrowleft') keys.a = false;
+  if (k==='d'||k==='arrowright') keys.d = false;
+});
+
+// ============ جوی‌استیک ============
+const joyZone = document.getElementById('joystick-zone');
+const joyStick = document.getElementById('joystick-stick');
+let joyTouchId = null;
+const joyMax = 50;
+
+function joyStart(e) {
+  e.preventDefault();
+  const t = e.changedTouches ? e.changedTouches[0] : e;
+  joyTouchId = t.identifier ?? 'mouse';
+  joy.active = true;
+  joyMove(e);
+}
+function joyMove(e) {
+  if (!joy.active) return;
+  e.preventDefault();
+  const t = e.changedTouches
+    ? Array.from(e.changedTouches).find(tt => tt.identifier === joyTouchId)
+    : e;
+  if (!t) return;
+  const r = joyZone.getBoundingClientRect();
+  const cx = r.left + r.width/2, cy = r.top + r.height/2;
+  let dx = t.clientX - cx, dy = t.clientY - cy;
+  const dist = Math.hypot(dx, dy);
+  if (dist > joyMax) { dx = dx/dist*joyMax; dy = dy/dist*joyMax; }
+  joyStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  joy.x = dx / joyMax;
+  joy.y = dy / joyMax;
+}
+function joyEnd(e) {
+  e.preventDefault();
+  joy.active = false; joyTouchId = null;
+  joy.x = 0; joy.y = 0;
+  joyStick.style.transform = 'translate(-50%, -50%)';
+}
+joyZone.addEventListener('touchstart', joyStart, { passive:false });
+joyZone.addEventListener('touchmove', joyMove, { passive:false });
+joyZone.addEventListener('touchend', joyEnd, { passive:false });
+joyZone.addEventListener('touchcancel', joyEnd, { passive:false });
+joyZone.addEventListener('mousedown', joyStart);
+addEventListener('mousemove', e => { if (joy.active) joyMove(e); });
+addEventListener('mouseup', e => { if (joy.active) joyEnd(e); });
+
+// ============ دکمه مشت ============
+const punchBtn = document.getElementById('punch-btn');
+punchBtn.addEventListener('touchstart', e => { e.preventDefault(); doPunch(); }, { passive:false });
+punchBtn.addEventListener('mousedown', e => { e.preventDefault(); doPunch(); });
+
+function doPunch() {
+  if (!player || state.gameOver || state.punchCooldown > 0) return;
+  state.punchCooldown = 0.5;
+  playAction('punch', 0.1);
+  setTimeout(() => playAction('idle', 0.3), 400);
+
+  const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(player.quaternion);
+  const punchPoint = player.position.clone().add(forward.multiplyScalar(2.5));
+  punchPoint.y += 1;
+
+  createPunchEffect(punchPoint);
+
+  enemies.slice().forEach(enemy => {
+    if (enemy.position.distanceTo(punchPoint) < 2.5) damageEnemy(enemy);
+  });
+}
+
+function createPunchEffect(pos) {
+  const geo = new THREE.SphereGeometry(0.3, 16, 16);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.9 });
+  const fx = new THREE.Mesh(geo, mat);
+  fx.position.copy(pos);
+  scene.add(fx);
+  const start = performance.now();
+  const anim = () => {
+    const t = (performance.now() - start) / 300;
+    if (t >= 1) { scene.remove(fx); fx.geometry.dispose(); fx.material.dispose(); return; }
+    fx.scale.setScalar(1 + t*3);
+    fx.material.opacity = 0.9 * (1 - t);
+    requestAnimationFrame(anim);
+  };
+  anim();
+}
+
+// ============ دشمنان ============
+function createEnemy() {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff3333, roughness: 0.6 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1, 4, 8), bodyMat);
+  body.position.y = 1.2; body.castShadow = true;
+  group.add(body);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.45, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0xff6666 })
+  );
+  head.position.y = 2.4; head.castShadow = true;
+  group.add(head);
+
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+  [-0.18, 0.18].forEach(x => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), eyeMat);
+    eye.position.set(x, 2.5, 0.38);
+    group.add(eye);
+  });
+
+  const armMat = new THREE.MeshStandardMaterial({ color: 0xcc2222 });
+  [-0.65, 0.65].forEach(x => {
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.8, 4, 8), armMat);
+    arm.position.set(x, 1.3, 0); arm.castShadow = true;
+    group.add(arm);
+  });
+
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 20 + Math.random() * 10;
+  group.position.set(Math.cos(angle)*dist, 0, Math.sin(angle)*dist);
+
+  group.userData = { hp:30, speed:2+Math.random()*1.5, attackCooldown:0, hitFlash:0, bodyMat };
+  scene.add(group);
+  enemies.push(group);
+}
+
+function damageEnemy(enemy) {
+  enemy.userData.hp -= 15;
+  enemy.userData.hitFlash = 0.3;
+  const dir = enemy.position.clone().sub(player.position).normalize();
+  enemy.position.add(dir.multiplyScalar(1.5));
+
+  if (enemy.userData.hp <= 0) {
+    scene.remove(enemy);
+    const i = enemies.indexOf(enemy);
+    if (i >= 0) enemies.splice(i, 1);
+    state.score += 10;
+    document.getElementById('score-val').textContent = state.score;
+  }
+}
+
+// ============ حرکت بازیکن ============
+const playerSpeed = 6;
+const moveDir = new THREE.Vector3();
+let targetRotation = 0;
+
+function updatePlayer(dt) {
+  if (!player || state.gameOver) return;
+
+  let ix = 0, iz = 0;
+  if (keys.w) iz -= 1;
+  if (keys.s) iz += 1;
+  if (keys.a) ix -= 1;
+  if (keys.d) ix += 1;
+  ix += joy.x; iz += joy.y;
+
+  const len = Math.hypot(ix, iz);
+  const moving = len > 0.15;
+
+  if (moving) {
+    ix /= len; iz /= len;
+    moveDir.set(ix, 0, iz).normalize();
+    player.position.addScaledVector(moveDir, playerSpeed * dt);
+    targetRotation = Math.atan2(moveDir.x, moveDir.z);
+
+    if (currentAction !== actions['punch']) playAction('run', 0.2);
+  } else {
+    if (state.punchCooldown <= 0 && currentAction !== actions['idle']) playAction('idle', 0.3);
+  }
+
+  const diff = ((targetRotation - player.rotation.y + Math.PI) % (Math.PI*2)) - Math.PI;
+  player.rotation.y += diff * Math.min(1, dt * 12);
+
+  const lim = 45;
+  player.position.x = Math.max(-lim, Math.min(lim, player.position.x));
+  player.position.z = Math.max(-lim, Math.min(lim, player.position.z));
+}
+
+// ============ دوربین ============
+const camDesired = new THREE.Vector3();
+const camTarget = new THREE.Vector3();
+
+function updateCamera(dt) {
+  if (!player) return;
+  const backDir = new THREE.Vector3(0, 0, -1).applyQuaternion(player.quaternion);
+  camDesired.copy(player.position)
+    .add(backDir.multiplyScalar(-8))
+    .add(new THREE.Vector3(0, 5, 0));
+  camera.position.lerp(camDesired, Math.min(1, dt * 4));
+  camTarget.copy(player.position).add(new THREE.Vector3(0, 1.8, 0));
+  camera.lookAt(camTarget);
+}
+
+// ============ دشمنان AI ============
+function updateEnemies(dt) {
+  if (!player) return;
+
+  state.spawnTimer -= dt;
+  if (state.spawnTimer <= 0 && enemies.length < 8) {
+    state.spawnTimer = state.spawnInterval;
+    createEnemy();
+  }
+
+  enemies.forEach(enemy => {
+    const ud = enemy.userData;
+    ud.attackCooldown -= dt;
+    ud.hitFlash -= dt;
+
+    if (ud.hitFlash > 0) {
+      ud.bodyMat.emissive.setHex(0xffffff);
+      ud.bodyMat.emissiveIntensity = ud.hitFlash * 3;
+    } else {
+      ud.bodyMat.emissive.setHex(0x000000);
+    }
+
+    const dir = player.position.clone().sub(enemy.position);
+    dir.y = 0;
+    const dist = dir.length();
+
+    if (dist > 1.8) {
+      dir.normalize();
+      enemy.position.addScaledVector(dir, ud.speed * dt);
+      enemy.rotation.y = Math.atan2(dir.x, dir.z);
+    } else if (ud.attackCooldown <= 0 && !state.gameOver) {
+      ud.attackCooldown = 1.2;
+      state.health -= 10;
+      updateHealthUI();
+      enemy.position.y = 0.3;
+      setTimeout(() => enemy.position.y = 0, 150);
+      if (state.health <= 0) gameOver();
+    }
+
+    const lim = 50;
+    enemy.position.x = Math.max(-lim, Math.min(lim, enemy.position.x));
+    enemy.position.z = Math.max(-lim, Math.min(lim, enemy.position.z));
+  });
+
+  document.getElementById('enemy-val').textContent = enemies.length;
+}
+
+function updateHealthUI() {
+  const pct = Math.max(0, state.health) / state.maxHealth * 100;
+  document.getElementById('health-fill').style.width = pct + '%';
+}
+
+// ============ پایان بازی ============
+function gameOver() {
+  state.gameOver = true;
+  document.getElementById('final-score').textContent = state.score;
+  document.getElementById('game-over').classList.remove('hidden');
+}
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+  enemies.forEach(e => scene.remove(e));
+  enemies.length = 0;
+  Object.assign(state, {
+    health: state.maxHealth, score: 0, gameOver: false,
+    spawnTimer: 1, punchCooldown: 0,
+  });
+  if (player) { player.position.set(0,0,0); player.rotation.set(0,0,0); }
+  updateHealthUI();
+  document.getElementById('score-val').textContent = '0';
+  document.getElementById('game-over').classList.add('hidden');
+});
+
+// ============ حلقه اصلی ============
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (state.playing) {
+    if (state.punchCooldown > 0) state.punchCooldown -= dt;
+    updatePlayer(dt);
+    updateEnemies(dt);
+    updateCamera(dt);
+    if (playerMixer) playerMixer.update(dt);
+  }
+
+  renderer.render(scene, camera);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+updateHealthUI();
+animate();
+</script>
 </body>
-  </html>
+</html>
